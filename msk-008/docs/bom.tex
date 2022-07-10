@@ -1,0 +1,42 @@
+% $Id: bom.tex 9376 2021-08-31 13:12:43Z mskala $
+
+%
+% MSK 008 bill of materials
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\onecolumn
+\chapter{Bill of materials}
+
+{\centering
+\fbox{This table is not a substitute for the text instructions.}
+
+\begin{longtable}{rp{1.3in}cp{3in}}
+  \textbf{Qty} & \textbf{Ref} & \textbf{Value/Part No.} & \\ \hline \endhead
+\input{bomdata.tex}
+\end{longtable}\par}
+
+Not listed above, but also needed:  front panel, two circuit boards,
+three 14-pin DIP sockets, solder, etc.
+Fixed resistors should be 1\%\ metal film, except those specified as 0.1\%. 
+North Coast Synthesis Ltd.\ kits or assembled modules sometimes contain
+other parts with equivalent or better specifications rather than exact
+manufacturers and part numbers shown here.
+
+\twocolumn

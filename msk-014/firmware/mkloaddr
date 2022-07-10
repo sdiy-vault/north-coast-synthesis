@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+
+# $Id: mkloaddr 9837 2022-02-13 17:27:02Z mskala $
+
+# Loader address finder for MSK 014 firmware
+# Copyright (C) 2022  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+
+$end_address=0xa800;
+$start=0;
+$end=0;
+
+while (<>) {
+  if (/^([0-9a-f]+)\s[tT]\s+loader_start/) {
+    $start=hex("0x$1");
+  }
+  if (/([0-9a-f]+)\s[tT]\s+loader_end/) {
+    $end=hex("0x$1");
+  }
+  if (/([0-9a-f]+)\sa\s+loader_delta/) {
+    $delta=hex("0x$1")&0xFFFF;
+    $delta-=0x10000 if $delta&0x8000;
+  }
+}
+
+printf ".section loader_hi, code, address(0x%x)\n",
+  $end_address-($end-$start+$delta);
+print STDERR "$delta\n";

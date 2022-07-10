@@ -1,0 +1,45 @@
+% $Id: bom.tex 10137 2022-06-04 20:51:54Z mskala $
+
+%
+% MSK 013 bill of materials
+% Copyright (C) 2020  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\onecolumn
+\chapter{Bill of materials}\label{cha:bom}
+
+{\centering
+\fbox{This table is not a substitute for the text instructions.}
+
+\begin{longtable}{rp{1.4in}cp{2.9in}}
+  \textbf{Qty} & \textbf{Ref} & \textbf{Value/Part No.} & \\ \hline \endhead
+\input{bomdata.tex}
+\end{longtable}\par}
+
+Fixed resistors should be 1\%\ metal film throughout.
+RoHS-certified zinc-plated steel hardware is recommended, not stainless
+steel because of galvanic-corrosion incompatibility with aluminum parts.
+
+Note some kits may substitute parts of equivalent or better specifications,
+in particular 1N5231C Zener diodes and TL074B op amps.
+
+Also needed:  solder and related supplies, PCB, panel, knobs,
+16-pin Eurorack power cable, etc.
+
+\twocolumn

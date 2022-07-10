@@ -1,0 +1,109 @@
+% $Id: ledblinks.tex 9726 2021-12-20 19:14:48Z mskala $
+
+%
+% LED blinker utility
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{LED blinker (ledblink.s)}
+
+The LED blinker driver in ledblink.s is a small, simple assembly language
+module that may be useful as an example of how modules are typically
+structured.  It provides automatic blinking of the module LEDs, placing
+little load on the foreground code.  Several other modules use this driver.
+
+The LED blinker steps through 16 states at a rate of 15.258\,Hz, which
+works out to 1.048\,s to complete the full cycle.  For each state, you can
+choose each of the two LEDs to be red, green, or off.  That allows for a
+wide range of different blink patterns.
+
+\section{API}
+
+The API is summarized in the code comments near the start of the file.  Call
+LEDBLINK\_INIT to activate the driver.  Set the blink pattern by writing
+chosen values into the global variables LEDBLINK\_TRIS7, LEDBLINK\_TRIS9,
+LEDBLINK\_RB7, and LEDBLINK\_RB9.  When LED blinking is no longer desired,
+call LEDBLINK\_DONE.
+
+In more detail:  the driver cycles through the 16 bits of all the global
+variables, starting from the LSB and moving to the MSB.  In each state, the
+TRIS bits (``tri-state'') specify whether the corresponding LED will be on
+or off (bit value 1 for off).  The RB bits (``register B'') specify whether
+the LED will be green (RB bit value 1) or red (RB bit value 0).  The
+registers with ``7'' in their names refer to the left LED and those with
+``9'' in their names refer to the right LED.  These variable names are chosen
+to line up with the microcontroller register and pin names (TRISB, LATB,
+RB7, RB9) used when directly accessing the LED hardware.
+
+For example, to turn off the LEDs entirely, set LEDBLINK\_TRIS7 and
+LEDBLINK\_TRIS9 to 0xFFFF, as with the \insn{setm} instruction.  To
+blink the LEDs back and forth slowly, in green, set LEDBLINK\_RB7 and
+LEDBLINK\_RB9 to 0xFFFF; set LEDBLINK\_TRIS7 to 0x00FF, and set
+LEDBLINK\_TRIS9 to 0xFF00.  Setting LEDBLINK\_TRIS7 and LEDBLINK\_TRIS9 both
+to 0x00FF would make the LEDs blink together instead of alternately.  To
+make just one LED toggle very fast between red and green, not shutting off
+at all, clear its TRIS variable and set its RB variable to 0x5555.
+
+\section{How it works}
+
+This driver uses general-purpose Timers~1 and~2 to keep track of the current
+state of LED blinking.  That may seem an unecessarily large use of
+resources, but the module has few other demends on these general-purpose
+timers.
+
+Timer~1 is driven by the 16.000\,MHz instruction clock prescaled by 1:256,
+for an input clock frequency of 62.500\,kHz.  Its period is the maximum
+(65536 counts), giving a reset rate of 0.954\,Hz:  the overall cycle time of
+the LED blinker.  Timer~2 gets the same 62.500\,kHz prescaled clock, but
+with a period of 4096 counts, for a reset rate of 15.259\,Hz.  These
+configuration settings are put in place by STANDARD\_IO\_CONFIG in
+firmware.s.
+
+The idea is that every time Timer~2 resets, we will update the LED state,
+looking at the high bits of Timer~1 to find out which state we are in.  We
+don't want those bits to be changing while we look at them, so we arrange
+for the two timers to reset 2048 counts (half of Timer~2's period) apart
+from each other.  That way we can be pretty sure the ISR for Timer~2 will be
+running while the high bits of Timer~1 are quiet -- despite the fact that
+these timer ISRs run at low priority (priority 2, set in firmware.s).  Even
+if there were a synchronization problem, reads from the timers are atomic,
+and the extent of getting the wrong value would just be the LEDs showing the
+wrong state for about 1/15 of a second.
+
+The LEDBLINK\_INIT subroutine is straightforward:  it just sets all the
+control variables to 0xFFFF (LEDs off, and will default to green if turned
+on) and turns on the interrupts.  The LEDBLINK\_DONE subroutine is similarly
+very simple:  it just disables the interrupts and turns off the LED
+hardware.
+
+The ISR for Timer~1 forces Timer~2's count to 2048 (halfway through
+Timer~2's period), about once per second just to keep them in the proper
+sync.  A slightly interesting point is that it accomplishes that by using
+the \insn{clr} and \insn{bset} instructions, to avoid overwriting and thus
+needing to save and restore a working register.  The operation is not atomic
+but doesn't need to be; the counter only counts at one count per 256
+instructions, and one stray count that might get in between the two
+instructions will not harm anything.
+
+The ISR for Timer~2 does the real work of LED blinking.  It grabs the top
+four bits of Timer~1's state, uses them to index into the four global
+variables, and sets the hardware bits that control the LEDs accordingly.  It
+also sets the SI\_BLINK1 and SI\_BLINK2 flags, which are used by the
+calibration routine for timing pauses; two of these flags because each of
+the two threads may want to do it independently.

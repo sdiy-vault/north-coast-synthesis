@@ -1,0 +1,99 @@
+#!/usr/bin/perl
+
+# $Id: mkimagesyms 9837 2022-02-13 17:27:02Z mskala $
+
+# Image-file symbol calculator for MSK 014 firmware
+# Copyright (C) 2022  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+
+use String::CRC32;
+
+$/=undef;
+
+open(FIRMWARE,shift);
+$firmware=<FIRMWARE>;
+close(FIRMWARE);
+
+$imgsyms_file=shift;
+open(IMGSYMS,$imgsyms_file);
+$old_imgsyms=<IMGSYMS>;
+close(IMGSYMS);
+
+$/="\n";
+
+open(FWSYMS,shift);
+while (<FWSYMS>) {
+  chomp;
+  if (/^([0-9a-f]+) . (\S+)$/) {
+    $psym_value{$2}=hex("0x$1");
+  }
+}
+close(FWSYMS);
+
+open(IMGSYMS,shift);
+while (<IMGSYMS>) {
+  chomp;
+  if (/^([0-9a-f]+) . __crc_end__([A-Za-z0-9\_]+)$/) {
+    $crc_end{$2}=hex("0x$1");
+  }
+  if (/^([0-9a-f]+) . __crc_start__([A-Za-z0-9\_]+)$/) {
+    $crc_start{$2}=hex("0x$1");
+  }
+  if (/^([0-9a-f]+) . __psym__([A-Za-z0-9\_]+)$/) {
+    $psym_wanted{$2}=hex("0x$1");
+  }
+  if (/^([0-9a-f]+) . __moby__([A-Za-z0-9\_]+)$/) {
+    $moby{$2}=hex("0x$1");
+  }
+}
+close(IMGSYMS);
+
+foreach $_ (keys %moby) {
+  if (/^crc_end__([A-Za-z0-9\_]+)$/) {
+    $crc_end{$1}+=(0x10000*$moby{$_});
+  }
+  if (/^crc_start__([A-Za-z0-9\_]+)$/) {
+    $crc_start{$1}+=(0x10000*$moby{$_});
+  }
+}
+
+foreach $crcid (keys %crc_start) {
+  $data=substr($firmware,$crc_start{$crcid},
+    $crc_end{$crcid}-$crc_start{$crcid});
+  $imgsyms{"__crc__$crcid"}=sprintf("0x%08x",crc32($data));
+  $imgsyms{"__crc_addra__$crcid"}=sprintf("0x%06x",$crc_start{$crcid});
+  $imgsyms{"__crc_addrz__$crcid"}=sprintf("0x%06x",$crc_end{$crcid});
+}
+
+foreach $psym (keys %psym_wanted) {
+  $imgsyms{"__psym__$psym"}=sprintf("0x%04x",$psym_value{$psym});
+}
+
+$new_imgsyms='';
+foreach $_ (sort keys %imgsyms) {
+  $new_imgsyms.=".equ $_, ".$imgsyms{$_}."\n";
+}
+
+if ($new_imgsyms ne $old_imgsyms) {
+  open(IMGSYMS,">$imgsyms_file");
+  print IMGSYMS $new_imgsyms;
+  close(IMGSYMS);
+  exit(0);
+}
+
+exit 1;

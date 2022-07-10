@@ -1,0 +1,711 @@
+% $Id: calibrations.tex 9792 2022-01-24 15:20:42Z mskala $
+
+%
+% Calibration (programmer's manual description)
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Calibration (calibration.s)}
+
+The components used to build the Gracious Host module have limited
+accuracy.  When an input voltage comes in, it passes through an
+operational amplifier which applies a gain determined by the ratio of two
+1\%\ resistors, and may also have an offset of a few millivolts.  Then it
+gets converted to digital by an ADC which may not be perfectly linear.  So
+two built modules given the same input voltage may read different raw ADC
+values.  Similarly, there are variations in the DAC chips and the amplifiers
+after them, so that sending the same number to the DACs may produce
+different voltages on different modules.
+
+In order to make input and output voltages as accurate as possible, each
+module needs to be individually \emph{calibrated} with a set of numbers
+representing how to translate between raw ADC and DAC numbers, and accurate
+external voltages, taking into account the specific variations of that
+individual module.  The code in calibration.s handles both the automated
+process for finding a module's calibration numbers, and the API that applies
+them during normal operation so that other code in the firmware can deal in
+voltages instead of raw ADC and DAC numbers.
+
+Calibrating the Gracious Host to send and receive accurate voltages requires
+the use of some kind of external voltage reference, and the standard
+calibration process uses a Eurorack 1V/octave oscillator for that.  The
+concept is that if the code in calibration.s sends two voltages that differ
+by exactly 1V, then the oscillator should produce two frequencies that
+differ by exactly one octave, that is, a factor of two in frequency.  The
+Gracious Host has the ability to measure \emph{frequencies} accurately with
+its many on-chip timers and accurate external clock reference, so by
+measuring the effect on frequency of an assumed-good external 1V/octave
+oscillator, it can get at voltages indirectly.  Once the output voltages are
+calibrated, then the user is expected to patch the output jacks to the input
+jacks, and the input voltages can be calibrated using the known output
+voltages.
+
+Details of the calibration procedure from the user's point of view are in
+the UBM.  Note that although this depends on the accuracy of the external
+oscillator, and not all oscillators are necessarily good, that can be an
+advantage.  The calibration is actually to \emph{frequency} rather than
+\emph{voltage}.  If the Gracious Host is calibrated using an oscillator that
+does not track accurately, tuned the way it normally will be tuned in actual
+use (such as 0V $=$ MIDI note 36), then the Gracious Host's voltages will
+end up distorted in exactly the way needed to make the oscillator tune
+accurately.  Instead of sending 2.0V for MIDI note 60, it will send whatever
+voltage is needed to make the oscillator actually play MIDI note 60.  This
+effect depends on keeping the same oscillator and tuning for calibration and
+general use, but many users will be doing that in practice anyway.
+
+\section{The calibration page}
+
+One page (512 instructions, 1536 bytes) of the microcontroller's flash
+program memory is reserved for the calibration data.  Pages like this are
+the minimum unit of erasing the flash memory.  As a primitive form of wear
+levelling, Perl code embedded in the firmware Makefile chooses a random page
+not too close to the top or bottom of memory and writes the file
+rndpage.inc, which contains the symbol \_\_rndpage defined as the top eight
+bits of the page address.  The .section directive for the calibration data
+then orders the linker to put it at the specified address.  Firmware images
+assembled on different occasions will put the calibration data in different
+locations.
+
+The calibration page is divided into eight rows of 64 instructions each,
+which are the minimum unit of rewriting the flash memory if
+single-instruction writes are not being used.  In order to economize on
+erase operations, when calibration completes it will write the result into
+the first empty row, erasing the page if there is no empty row.  Then the
+module looks at the last non-empty row for the current calibration data; so
+in the long term, with many calibrations and no firmware update, there will
+be only one erase per eight calibrations.
+
+Firmware update rewrites the entire calibration page with eight copies of
+the default calibration data, so the first calibration after the update
+(normally done as part of the update process) is forced to erase the page. 
+That may be unnecessarily fussy, but Microchip recommends against writing
+again without erasing to a location that has already been written, even if
+it was written with the freshly-erased value 0xFFFFFF.  Forcing the second
+erase after update prevents the module writing again to the calibration page
+after the update process (which works an entire page at a time) has written
+the entire calibration page.
+
+The format for the calibration data is as described in the source file. 
+Only the low 16 bits of each instruction word are used.  The output
+calibration data comes first and consists of the values to send to DAC
+channel~1 (left) for output voltages of 0.0V, 0.5V, 1.0V, \ldots, 5.0V, and
+a sentinel value of 0xFFFF, twelve words in all.  Then there are twelve more
+words giving similar values for DAC channel~2.  Next come the input
+calibration values for input channel~1, which are the numbers expected from
+the ADC for input voltages of 0.0V, 0.5V, 1.0V, \ldots, 5.0V, and a sentinel
+value of zero, twelve words in all; and finally twelve more words giving
+similar values for input channel~2.  Input calibration values are greater
+for lower voltages because the inputs are processed by inverting amplifiers
+between the input jacks and the microcontroller's ADC pins.  The remaining
+words of the row after the calibration data are filled with 0xFFFFFF.
+
+The output calibration values need to be strictly increasing, and the input
+calibration values need to be strictly decreasing, in order to prevent
+sign and division by zero problems in the interpolations that use these
+values.  That is, the value for 0.0V output must be less than the value for
+0.5V output, not equal or greater, and so on.  The calibration routines
+that generate these values are designed to force this property.
+
+The default calibration data given in the source code represents the values
+that would be right if all components were perfectly on their nominal
+values, the ADCs and DACs were perfectly linear, and so on.  These values
+should cause the module to basically work, so that a builder who puts one
+together without calibrating it will at least be able to check that there
+were no major build errors.  Accurate musical tuning, however, does require
+running the calibration process.
+
+\section{API for the calibration data}
+
+The global symbols OUTPUT\_CAL1, OUTPUT\_CAL2, INPUT\_CAL1, and INPUT\_CAL2
+are copies in RAM of the current calibration data.  The code also defines
+global variables in RAM named CM3\_EDGE\_TIME and CM1\_EDGE\_TIME, which are
+written by the comparator ISR to represent the times when
+recent edges occurred on the digital input jacks, so that other code can have
+access to this information should it wish to share the calibration routine's
+ISR.
+
+CALIBRATION\_TO\_RAM is expected to be called during the boot process.  It
+searches for the last non-empty row in the calibration page, recognizing it
+by the fact that empty rows will have 0xFFFF in the first word of
+calibration data where non-empty rows specify the 0.0V output value for
+DAC~1.  The current calibration procedure always makes the 0.0V output value
+zero, and in any case, only values in the range 0x0000 to 0x0FFF can be sent
+to the DAC.  Once it finds a non-empty row, the code copies all the
+calibration data from that row to the RAM variables, and returns.
+
+ADC1\_TO\_NOTENUM and ADC2\_TO\_NOTENUM are two entry points to basically the
+same subroutine that applies the input calibration data to
+raw numbers from the ADCs, translating them into semitone-and-fraction
+representation with the MIDI note in the high byte.  This subroutine starts
+with a linear search to find the first entry in the appropriate input
+calibration table to be less than or equal to the input value from W0.  Such
+an entry necessarily exists because of the sentinel zero at the end.  It
+technically finds the first such entry \emph{at or after the second entry of
+the table}, guaranteeing that W2 and W2-2 will both be validly within the
+table.
+
+The two entries [W2-2] and [W2] describe two calibrated notes half an octave
+apart, with associated ADC readings bracketing the input reading, at least
+for inputs in the range from 0V to 5V that we intend to support.  Voltages
+outside that range will end up using the entries at one or the other end of
+the table, probably giving less accurate results.  The two selected table
+entries are used for linear interpolation: input value minus [W2], divided
+by the difference between [W2-2] and [W2], gives a fraction that says where
+the input is within the half-octave.  From there it is easy to calculate the
+note number, with fractional part, for the input reading.  Division by zero
+will crash the microcontroller (math error trap) but should be impossible if
+the calibration data obeys the requirement of being strictly decreasing.
+
+NOTENUM\_TO\_DAC1 and NOTENUM\_TO\_DAC2 go in the other direction, taking a
+note number and fraction in W0 and sending it to one DAC or the other. 
+These are simple wrappers that call notenum\_to\_dacnum, described below, to
+translate the note numbers into the raw numbers to send to the DACs, then
+fall through into the WRITE\_DAC1 and WRITE\_DAC2 entry points, which format
+the appropriate messages to the DACs and send them through the SPI port. 
+WRITE\_DAC1 and WRITE\_DAC2 serve as APIs for code that may want to write a
+raw number to the DAC without calibrated translation.  For instance, the
+MIDI drum trigger mode sends 0x0FFF as a raw value to get the maximum
+voltage out of the DACs without translating it from a note number.
+
+The notenum\_to\_dacnum subroutine does interpolation on the output
+calibration tables.  It starts with special-case code to recognize notes
+less than note 42, all of which map into the first table entry pair, and
+notes greater than or equal to note 90, all of which map into the last table
+entry pair.  Otherwise it must divide by 0x0600 (representing half an
+octave) to find the appropriate pair of consecutive table entries.  In each
+of these cases it computes a signed number in W1 representing the fractional
+part of the half-octave; that is the remainder from division and therefore
+in the range 0 to 0x05FF for the table entries where we actually did a
+division, but it could be out of that range for the extreme pairs if the
+original note number was outside the range covered by the table.
+
+Either way, the selected pair of consecutive table entries describes two
+calibrated notes half an octave apart that bracket, or come close to
+bracketing, the input note.  The fraction in W1 is multiplied by the
+difference between successive table entries and then divided by 0x0600 (for
+the half-octave size of the interval) to describe the adjustment for the
+input note's position within the half-octave, and applying that adjustment
+to the lower table entry of the pair gives the DAC value for the input note.
+
+\section{Cooperative dual threading}
+
+The left and right sides are basically independent; each can be at any point
+in the calibration process regardless of where the other one is.  In order
+to make that work, they are written using very simple multithreading,
+supported by reserved registers and the yield and idle\_and\_yield
+subroutines.
+
+Here are the rules followed by the multithreaded code.
+
+\begin{itemize}
+\item Either thread may use W0 and W1; these registers are not preserved
+across a thread switch.
+\item Thread~1 (corresponding to the left-side calibration) may use W2--W7. 
+These registers are expected to be preserved across a thread switch, and
+thread~2 (corresponding to the right-side calibration) is expected not to
+touch them.
+\item Conversely, registers W8--W13 are reserved for thread~2, expected to
+be preserved across a thread switch, and thread~1 is expected not to touch
+them.
+\item W14 is used to store the other thread's program counter while one
+thread is executing.  This conflicts with its use for \insn{lnk}/\insn{ulnk}
+and neither thread should use those unless the thread restores W14 before
+the next thread switch.
+\item W15 is the stack pointer.  There is only one stack and thread~2,
+although it is free to call subroutines that return without yielding, must
+preserve W15 from one yield to the next.
+\end{itemize}
+
+The yield subroutine switches between threads.  It basically just returns,
+but it returns \emph{into the other thread}, which is assumed to also have
+called yield at some point in the past, instead of returning into the thread
+that called it.  So with two threads each calling yield frequently,
+execution will switch between the two at each call.  It is implemented by
+popping the caller's return address, swapping it with W14, and then doing a
+\insn{goto} to the other thread's return address that was just swapped.  The
+idle\_and\_yield subroutine, intended to be called only from thread~1, is
+meant to handle waiting for something (like an interrupt) to happen.  It
+does a \insn{pwrsav}~\#1 with a yield before and after it.
+
+Switching into the dual-thread execution state is handled in what will
+become thread~1, just by writing the starting address for thread~2 into W14. 
+Then the first yield call will start running thread~2.  At the end of the
+calibration process, thread~2 goes into an infinite loop calling yield. 
+Thread~1, when it also completes, loops calling idle\_and\_yield and watches the
+value of W14.  When W14 is equal to the address of the instruction after
+thread~2's final yield call, it knows thread~2 is complete.  Then thread~1
+simply does not call yield anymore, and continues on as the single thread of
+execution.  In all, this is basically the smallest multithreading kernel
+that could possibly work; but it does work well in the intended application.
+
+Microchip's debugger does not work well on the multithreaded code.  It seems
+to be confused by subroutine calls with \insn{rcall} that do not return with
+\insn{return} -- like the calls to yield, which end with \insn{goto}
+instructions into the other thread.  So in order to make debugging easier,
+the code includes conditional assembly directives keyed to the
+SEQUENTIAL\_CALIBRATION configuration symbol that can be defined in
+config.inc.  Define this symbol to disable multithreading.  Then
+idle\_and\_yield and yield are redefined to just do \insn{pwrsav}~\#1 and
+return to the caller, so thread~1 will run first in its entirety without
+switching to thread~2, and then a call is added to make thread~1 call
+thread~2 as a subroutine when it completes.  The waiting loops at the ends
+of both threads are removed.  The result is that all the calibration on the
+left has to be done before any of the calibration on the right, but the
+control flow is much easier to follow in the debugger.
+
+\section{Output calibration}
+
+The entire calibration process starts at the global symbol
+CALIBRATION\_PROCEDURE, which sets up the hardware for the settings used in
+calibration mode.  It calls STANDARD\_IO\_CONFIG to get most of the timers
+and GPIO into a known state, and USB\_DONE to make sure the USB peripheral
+is shut down.  It also does a general enable of interrupts, setting the CPU
+interrupt level in the SR register, because this code is expected to
+normally be called after a firmware update, which would have run with SR set
+up to disable all interrupts that can be disabled.  Then it calls
+LEDBLINK\_INIT, turns on the comparator interrupt, and sets W14 to point at
+the start of the right-side output calibration (thread~2).  From this
+point onward, execution is dual-threaded.
+
+The calibration processes for thread~1 and thread~2 are basically the
+same code, just written to use different register numbers and variable
+locations, to talk to the appropriate sides of the hardware, and with
+idle\_and\_yield in thread~1 where thread~2 uses plain yield.  I will only
+describe thread~1 in detail.  Note that if you change the calibration code
+for one side you will probably want to carefully make the same changes on
+the other side to keep them working the same way.  They are just different
+enough that it did not make sense to try to write the code just once and
+have it take a parameter saying which side to do.
+
+In output calibration it is assumed that the analog output is patched into
+the V/oct input of a modular VCO.  The VCO's output is patched into the
+Gracious Host's digital input.  The loop starts by sending a zero to the
+DAC, giving a control voltage as near zero as the hardware will allow, and
+measures the frequency (actually period) that the VCO is producing.
+
+From there it is possible to compute the period for each half-volt interval
+from 0.5V up to 5.0V: the frequency doubles, and the period halves, for each
+volt, and the frequency is multiplied, period divided, by $\sqrt{2}$ for
+each \emph{half} volt.  Math geeks may note that we will actually use the
+approximation $\sqrt{2}\approx 47321/33461$, which is the best approximation
+of $\sqrt{2}$ for which the numerator and denominator fit in 16-bit unsigned
+integers.  (See OEIS sequence number A001333.)
+
+For each half-volt step, the loop sends the current calibration value, which
+represents the current best guess at what DAC number will result in the
+specified voltage, to the DAC and measures the resulting VCO period.  The
+measured period is compared against the calculated target period, and
+based on that, the calibration value for the voltage step may be adjusted up
+or down.
+
+After trying all the voltage steps from 0.5V up to 5.0V, the loop evaluates
+how many adjustments it had to make.  When no more adjustments are needed,
+output calibration is finished.  If there were adjustments, it loops again,
+starting with another reading of the oscillator period at 0V, to accommodate
+oscillators that may drift a little over time.
+
+That is the basic outline.  Now, some more details.
+
+Depending on the voltage step, the output calibration switches between
+configuring Timer~4 to 1:8 prescaler mode, which gives it a maximum timing
+period of 32.77\,ms corresponding to 30.52\,Hz; and 1:1 prescaler mode,
+which gives it a maximum period of 4.10\,ms corresponding to 244.14\,Hz. 
+It uses the slower mode for voltages up to 2.5V and the faster mode for
+higher voltages.  That way it can get a long enough timing period to measure
+the entire cycle of the slower frequencies, while still getting enhanced
+resolution at the higher frequencies.
+
+There are a lot of consistency checks applied to the input timing data;
+basically, each period measurement is accepted only if several consecutive
+periods fall within a small interval.  That is important especially at the
+start for recognizing that the user has actually connected an oscillator to
+the module at all, because we cannot do good calibration without one. 
+When a voltage step produces inconsistent results, its calibration does not
+get adjusted but it is counted as a ``bad note'' instead, and the loop will
+not terminate until it gets through with not only no adjustments, but no bad
+notes.
+
+It is expected that the last few loops will be just fine-tuning the
+calibration values, pushing them up or down one count at a time; but in
+order to get in the general range quickly, the first few loops run with a
+larger step size, starting from adjustments of 256 counts.  Whenever a loop
+completes with no bad notes, the current step size gets multiplied by $3/4$,
+rounded down, with a hard limit forcing it to stay at least 1.
+
+Output calibration starts by sanitizing the existing calibration data at
+OUTPUT\_CAL1:  a loop ensures that the first value is zero, the last value
+is 0xFFFF, and all values in between are 12-bit values (top four bits forced
+to zero).  It is not terribly critical that the initial values are
+\emph{good}, because they will all be adjusted anyway, but this step makes
+sure that they are at least valid for sending to the DAC.
+
+From label wait\_for\_oscillator\_1, the code looks for plausible results
+from the attached VCO.  It sets the LED on this side to a slow red blink by
+setting the global variables for the LED blinker code.  It sends a zero to
+DAC~1, and configures the Timer~4 prescaler to 1:8.  Then it loops waiting
+for two reasonable-looking sets of timestamps in a row.
+
+There is a macro defined here called wait\_ticks, which loops on
+idle\_and\_yield until SI\_BLINK1 in SOFT\_INT\_FLAGS has been set a
+specified number of times.  The SI\_BLINK1 flag gets set once every 65.536\,ms
+by the LED blinker driver.  This macro is used throughout the thread~1
+calibration code; then redefined, to look at SI\_BLINK2 and use plain yield
+instead, for the thread~2 code.
+
+To find a \emph{reasonable-looking set of timestamps}, the code does four
+iterations of clearing the SI\_CM3 flag (comparator~3 serves the left side
+of the module), waiting while calling idle\_and\_yield for the ISR to set
+that flag, and then capturing the timestamp that the ISR wrote to
+SM3\_EDGE\_TIME into a working register.  It collects four consecutive
+timestamps, representing three periods of the external oscillator, into
+W4--W7.  Then it computes the times of those three periods by subtracting
+successive timestamps, into W5--W7.
+
+In order to say that the timestamps correspond to a measurement we can use,
+we want all three periods to be in the range 7201 to 65408.  These numbers
+correspond to frequencies that, even if adjusted in either direction by a
+factor of $513/512$, will still be measurable with our timer settings and
+will correspond to halfway reasonable frequencies for MIDI note number 36,
+which we map to 0V.  The accepted range is slightly wider than one octave
+below and two octaves above standard MIDI concert pitch.  So the code checks
+the periods against those constants and if any are out of range, it goes
+back to wait\_for\_oscillator\_1, waiting for the user to attach a
+reasonable oscillator and tune it appropriately.
+
+When there really is no oscillator attached at the start of the loop, the
+most likely sequence of events is that the code will just wait a long time
+for the comparator edges, then get a few edges at random times a few
+milliseconds apart from contact bounce as the user patches in the
+oscillator.
+
+The next set of checks compares successive pairs of periods (W5 against W6
+and W6 against W7) to make sure they do not differ by more than
+OUTPUT\_CAL\_FUZZ, a configuration setting from config.inc.  The default is
+20, corresponding to $\pm$10\,$\mu$s.  If differences larger than that
+are detected, it again goes back to wait\_for\_oscillator\_1.
+
+When the loop, \emph{twice}, detects three consecutive periods that are in
+range and within the fuzz tolerance, that means a working VCO has been
+connected.  The waiting loop terminates.  It calls calculate\_targets,
+described under ``support routines'' below, to compute target period values
+that it should aim for on each of the other output voltages from 0.5V to
+5.0V.  These are basically just half-octave steps from the 0.0V period we
+just measured, but with a three-octave correction applied to the higher
+notes that will be measured with the 1:1 prescaler instead of the 1:8
+prescaler.  The target periods, with acceptable tolerance bands around them,
+go into the common-data RAM variables target\_period1, low\_period1, and
+high\_period1, which are arrays of values for the different half-octave
+steps.  W2 gets initialized at this point to 256 as the initial adjustment
+step size, and the output calibration as such starts at
+output\_allnotes\_loop\_1.
+
+The outer output calibration loop initializes some internal RAM variables:
+bad\_notes1 to zero, retuned\_notes1 to zero, and current\_note1, which is
+the loop counter for the inner loop, to 2.  The current\_note1 variable
+is a byte offset into the calibration data, and starts at 2 to represent the
+first note we may actually retune, skipping the fixed zero at offset zero.
+
+The outer loop handles repeating the adjustments until all notes are
+acceptably tuned, with as many invocations of the inner loop as necessary. 
+The inner loop, which starts at output\_note\_loop\_1, makes one adjustment
+attempt for each note.  It extracts the current calibration value for the
+current note, sends it to the DAC, and sets the T4 prescaler according to
+which note we are looking at (1:8 for notes numbered 0 to 5, 1:1 for higher
+notes).  It uses wait\_ticks to wait about a third of a second for the VCO to
+stabilize.  Then, much as in the waiting for oscillator stage, it waits for
+four consecutive time stamps, computes three consecutive periods from those,
+and checks whether they agree to within the fuzz tolerance.  If not, this
+note is counted as a ``bad note'' and the loop proceeds to the next note.
+
+If the periods are consistent, they get checked against the corresponding
+entries in low\_period1 and high\_period1, to check whether the calibration
+value for the current note should be adjusted downward (lower frequency,
+longer period, hit if the current period is shorter than desired) or upward
+(higher frequency, shorter period, hit if the current period is longer than
+desired).  There are additional checks to make sure that the current note is
+not set to a lower value than the previous note or a higher value than the
+next; these are always defined because of the forced zero at the start of
+the array and 0xFFFF at the end.  Finally, the new values are ANDed with
+0x0FFF to ensure they remain in range for the 12-bit DAC.
+
+The adjustment, if made, is by the amount in W2 in either direction; and if
+an adjustment was made, then the retuned\_notes1 counter is incremented.
+
+After all notes have possibly been adjusted, there is a second measurement
+of the note at 0V to make sure the oscillator has not drifted too much.  The
+code sends 0V to the DAC, waits about a third of a second, collects four
+timestamps, and computes three periods, much like before.  These get tested
+for consistency using OUTPUT\_CAL\_FUZZ, and then tested against the
+tolerance limits in low\_period1 and high\_period1 \emph{for note zero}. 
+Although we never actually change the calibration value for note zero, the
+concept here is to ask whether we would want to change it, in order to match
+the period for the note at 0V that we already measured at the top of the
+loop.  If we would, or if the consistency check failed, then it means the
+oscillator is misbehaving enough it should not be trusted for calibration,
+and the code branches all the way back to wait\_for\_oscillator\_1 to start
+over.  This code path might be taken, for instance, if the user starts
+messing with the tuning knob while calibration is in progress.
+
+Assuming the oscillator passes that test, the final logic in the loop
+handles the counts of bad notes and retuned notes.  The LED blink pattern
+gets adjusted, using some bit-twiddling; the mask of zeroes in
+LEDBLINK\_TRIS7, representing how many of the 16 time periods in the pattern
+the LED should be lit, is set to cover two bits plus one for each bad note
+and one for each retuned note.  The flashes will tend to be long at the
+start when many notes are being adjusted and then will get shorter.
+
+If there are no bad notes, then the step size for the adjustments gets
+reduced to $3/4$ of its current value, allowing finer adjustments on future
+loops.  Using the bad note count as the criterion for reducing the step size
+may seem arbitrary but seems to work well in practice; it is normally
+expected that the bad note count will stay at zero once the oscillator is
+stably hooked up, and the step size will shrink on every iteration until it
+hits 1, where (because of special-case code preventing step size from going
+to zero) it will stay.  The factor of $3/4$ was chosen by experiment; it is
+not terribly critical, but using too high or too low a factor is likely to
+make the calibration require more iterations to converge on the final
+values.
+
+The outer calibration loop repeats until there are no bad notes and no
+retuned notes, at which point all the output calibration values are
+considered good enough.
+
+\section{Input calibration}
+
+Input calibration starts as soon as output calibration finishes.  This too
+is dual-threaded code, repeated twice in the source file for the left and
+right sides, with the appropriate changes.  I describe only one thread here. 
+It begins by changing the LED blinker variables to switch to an alternating
+red and green blink at twice the earlier rate (about two blinks per second).
+
+The general outline of input calibration is similar to that of output
+calibration:  it loops through the voltage steps, trying to get a good
+reading for each of them, representing what the ADC reports when it sees
+that input voltage, and the loop finishes when the readings all seem good. 
+The process is a little simpler than for output calibration, however,
+because for this stage the user is expected to patch the analog output which
+was just calibrated to the analog input without an oscillator in between,
+and the module only needs to get a single consistent reading on each
+voltage, without doing a search up and down to find the calibration value.
+
+The outer loop, which does as many attempts of all notes as necessary,
+starts at input\_allnotes\_loop\_1.  It clears the bad notes counter and the
+loop counter for the inner loop, then starts the inner loop, which does one
+attempt for each note.
+
+For each note in the inner loop, the code sends the current output
+calibration value to the DAC.  From the just-completed output calibration,
+it is assumed that that will make the DAC produce the correct voltage for
+this note at the output jack.  Then the ADC reading, through the patch between
+output and input, should be the correct input calibration value for the
+note.
+
+Before reading the ADC, there is a two-tick (roughly 130\,ms) delay to make
+sure everything stabilizes.  Especially when running on a low-quality power
+system, there may be some significant noise in the ADC reading, so for more
+accurate results, a third-level loop runs to take 16 ADC measurements.  Each
+consists of waiting for the SI\_ADC1 flag in SOFT\_INT\_FLAGS, indicating
+that the ADC ISR has collected a new measurement (sampling rate 1.618\,kHz),
+and then getting the value from INPUT\_ADC1.  The third-level loop
+accumulates the minimum, maximum, and sum of the 16 measurements.  It
+immediately aborts (counting this as a ``bad note'') if the difference
+between minimum and maximum exceeds the INPUT\_CAL\_FUZZ configuration
+setting from config.inc, which defaults to 6 counts, approximately 38\,mV. 
+That is a generous tolerance; real hardware is not expected to produce such
+a wide range of readings for a fixed input voltage, but I want people to
+still be able to calibrate their modules to the precision that remains
+possible, even on a very noisy power system.  The averaging over 16
+measurements means the calibration value should be at least halfway decent
+even when there is a lot of noise from one sample to the next.
+
+Assuming no abort, the code divides the total of the measurements by 16 to
+get the mean or average.  That is the tentative new calibration value for
+the note.  There is a check that each calibration value, other than the 0V
+value, is strictly less than the calibration value for the next lower
+voltage, recalling that because of the inverting input amplifier, higher
+voltages give lower ADC readings.  Further special-case checks require that
+the calibration value for 0V is at least 754 (which would be the nominal
+reading for about 1.5V input) and the calibration value for 5V is at most
+441 (which would be the nominal reading for about 3.5V).  The checks on the
+0V and 5V values primarily serve as verification that the patch cable really
+is plugged in.  When the module is still connected to the VCO from the
+previous step, or when there is no cable patched, in the time between
+disconnecting the VCO and connecting the direct patch cable, these checks
+will fail and the calibration will wait.  If any of these checks fail, the
+note is counted as a bad note.  Otherwise, the mean measurement becomes the
+new calibration value for the note.
+
+After the inner loop has attempted all the notes, there is some bit
+twiddling in the outer loop to compute a new blink pattern for the LED.  It
+is substantially the same concept as used for the output calibration, but it
+turns the LEDBLINK\_TRIS7 bits on in the order 0, 8, 1, 9, 2, 10, {\ldots}
+so that the red and green blinks will scale proportionally to each other. 
+Since input calibration usually completes after only one or two loops, there
+is not much chance for the user to actually see these shortened blinks
+anyway.
+
+Input calibration ends when the inner loop finishes with no bad notes.  At
+that point the thread runs a final sanitization on the input calibration
+values (forcing them to fit in 10 bits and adding the zero sentinel at the
+end); sets the LED to fast green blink (about four per second); and enters
+the loop to ``join'' with the other thread.
+
+After both threads are complete the former thread~1, now the single
+execution path, turns off the comparator interrupt, calls
+CALIBRATION\_TO\_FLASH to burn the final result to to calibration page of
+program memory, turns off the LED blinker driver, and then branches to
+SUCCESS\_TUNE from loader.s, which notifies the user that the calibration
+process is complete and eventually results in a reboot of the module.
+
+\section{Support routines}
+
+The yield and idle\_and\_yield subroutines implement the calibration's
+dual-threading and are described above.
+
+The calculate\_targets subroutine finds the target period values for use
+during output calibration.  It is called from both threads, which means that
+it must not yield (to preserve the stack pointer) and it must preserve all
+the working registers except W0 and W1.  It assumes that W1 on entry points
+to the array of target periods (target\_period1 or target\_period2) with the
+period for note 0 already filled in by the caller.
+
+The period value for note~0 (0V output) gets copied directly to note~6 (3V)
+because of the prescaler change between notes 0--5 and 6--10.  Then the
+integer-volt notes are filled in: period from note 0 divided by two (shifted
+right one bit) to get the period for notes 2 and 8, and then divided by two
+again for notes 4 and 10.
+
+For the half-integer voltages (0.5V, 1.5V, and so on) we need to divide by
+$\sqrt{2}$, which is the frequency or period ratio for an equally tempered
+tritone, exactly half an octave.  Division by this irrational number is
+implemented using the rational approximation $\sqrt{2}\approx 47321/33461$:
+the period for note~0 is multiplied by 33461 and divided by 47321 using the
+PIC24's 16$\times$16$\rightarrow$32-bit multiplication and
+32$\div$16$\rightarrow$16-bit division.  The result of that calculation is
+the period value for note~1, copied to note~7 because of the prescaler
+change, then halved for notes~3 and~9 and halved again for note~5.
+
+For each note there is a tolerance band of plus or minus $1/512$ of the
+target period, which corresponds to an estimate of how precisely it is
+realistically possible for the Gracious Host to control the frequency of an
+external oscillator given the capabilities of its output DAC.  This is about
+$\pm$3.4\textcent{} of musical pitch.  A final loop runs over the
+target\_period array to compute lower and upper bounds with this
+tolerance and write them into the low\_period and high\_period arrays, which
+are the ones actually read by the output calibration.  Then
+calculate\_targets returns.
+
+The CALIBRATION\_TO\_FLASH subroutine is global, to support the possibility
+of some other code changing and wanting to rewrite the calibration data.  It
+starts by checking whether the \emph{last} row of the calibration page is
+empty, recognized by 0xFFFF in the first word of that row.  If so, then at
+least one empty row exists.  If not, then it erases the calibration page by
+setting the flash SFRs for a page erase and calling
+PERFORM\_FLASH\_OPERATION from loader.s to do the erase,
+after which all rows will be empty.
+
+After at least one empty row is known to exist, it searches to find the
+\emph{first} empty row, which will be the destination of the write.  It sets
+up the flash SFRs for a row write, copies the RAM calibration data to the
+``program latches'' used by the flash-writing hardware, and then ends with a
+tail call to PERFORM\_FLASH\_OPERATION.
+
+\section{Comparator ISR}
+
+The source file ends with the ISR for the comparator interrupt, whose main
+function is to save the timestamps from Timers~4 and~5 for the foreground to
+pick up and use in measuring frequencies during output calibration.
+
+For consistent timing, the ISR grabs the timer values into W0 and W1
+immediately after saving those registers on the stack, before acknowledging
+the interrupt or doing any conditionals to determine whether it actually
+needs to save the timestamps.  That way the delay between the comparator
+edge and the timestamp collection is minimized, and more importantly, is as
+consistent from one edge to the next as possible.  This interrupt runs at
+priority level~6, taking precedence over any of the other interrupts enabled
+by the firmware (most of which are disabled during calibration anyway), so
+its timing should not be affected by other things going on with other parts
+of the hardware.
+
+In hardware testing I discovered that the ISR would sometimes run on
+\emph{both} edges of an input pulse even though the comparator peripheral is
+configured to request an interrupt only on the \emph{rising} edge.  There is
+a published erratum for the chip saying that the comparator may sometimes
+fail to signal an interrupt requested by its configuration, depending on the
+configuration of the internal bandgap reference, but we are not using one of
+the bandgap reference configurations mentioned in the erratum, and the
+erratum makes no mention of the comparator possibly signalling \emph{extra}
+interrupts.  My guess is that instead of being an undocumented silicon
+erratum, the extra interrupts are coming from high-frequency noise on the
+input, which could possibly cause the voltage to go back and forth a couple
+of times across the comparator threshold in the space of a microsecond or so
+during a relatively slow falling edge, bearing in mind that these
+comparators are designed to be able to trigger much faster than the low
+audio frequencies at which we are using them.
+
+In order to guard against spurious interrupts on the falling edge, the ISR
+first checks the CEVT SFR for whether the hardware has reported a comparator
+event (rising edge) for comparator~3 corresponding to the left channel, and
+then it checks the comparator's output bit in COUT.  The output bit
+check occurs on the order of a microsecond after the interrupt was
+triggered.  If it was really a rising edge, then the output should be high
+when checked; if the output is low at the check, then the event is assumed
+to have been a falling edge, and is ignored.  If a valid rising edge is
+detected, then the SI\_CM3 bit gets set in SOFT\_INT\_FLAGS, and the
+already-captured Timer~4 value is saved to CM3\_EDGE\_TIME.
+
+The same logic repeats for comparator~1, corresponding to the right channel,
+with the SI\_CM1 bit being set and the Timer~5 timestamp written to
+CM1\_EDGE\_TIME should a rising edge be detected.  Then the ISR and the
+source file end.
+
+Note that although the front-panel input jack voltage runs through an
+inverting amplifier before reaching the microcontroller, the comparators are
+also set to an inverting configuration, so a ``rising edge'' as detected by
+either comparator corresponds to a rising edge at the input jack.
+
+\section{Hardware simulation}
+
+Because the calibration process (especially output calibration) depends on
+timing external events at the scale of microseconds to milliseconds, it can
+be difficult to observe in the Microchip debugger.  As well as the
+SEQUENTIAL\_CALIBRATION option already described, which turns off
+multi-threading because that confuses the debugger, the code supports
+SIMULATE\_CALIBRATION\_OSC and SIMULATE\_CALIBRATION\_ADC 
+conditional assembly symbols.
+
+If SIMULATE\_CALIBRATION\_OSC is enabled in config.inc, then the loops that
+collect timestamps from the ISR's recording of hardware events during output
+calibration will be replaced by a few instructions that provide fake
+timestamps, consistent with what would be expected from a VCO operating at
+exactly the nominal frequencies.  The timestamps will allow testing the rest
+of the logic in the output calibration process using single-step debugging
+either in real hardware or the Microchip simulator, despite the delays from
+debugging screwing up the values of the real timestamps and despite that the
+simulator does not run the comparator interrupt at all.  Testing the bad
+note and retuning logic will require manually editing the register values to
+get non-nominal timestamps.
+
+If SIMULATE\_CALIBRATION\_ADC is enabled in config.inc, then something
+similar is done for the ADC measurements to allow testing input calibration
+even in the software simulator, where the ADC does not produce useful
+values.  In this case the simulated readings are not exactly the nominal
+values, but just some plausible values that are easy to calculate.  As with
+the oscillator simulation, simulating bad notes requires manual
+intervention.

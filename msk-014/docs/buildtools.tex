@@ -1,0 +1,304 @@
+% $Id: buildtools.tex 9826 2022-02-09 20:05:05Z mskala $
+
+%
+% MSK 014 software build tools description
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Build environment and tools}
+
+The Gracious Host firmware is designed to be built in a command-line Linux
+environment, with the GNU Assembler for PIC24 as distributed by Microchip
+under the name ``XC16.'' I have not tested the build system in other
+command-line environments and recommend caution if you attempt to build
+firmware other than under Linux.
+
+\section{XC16 Assembler}
+
+Microchip distributes a ``compiler'' package called XC16, primarily intended
+for C programming, which actually contains the assembler and the rest of the
+toolchain as well.  Downloading and installing this is reasonably
+straightforward.  Make a note of where you installed it, because you will
+need to edit that into the Gracious Host Makefile later.  The default
+installation location seems to be \texttt{/opt/microchip/xc16/v1.23} with
+the version number modified to match the version of the package that was
+just installed.  I did most of the development using v1.60, and v1.70 seems
+to be the latest as of this writing.
+
+I do not recommend paying Microchip money for this package.  Almost all of
+it is simply a copy of the GNU multi-architecture toolchain, covered by the
+GNU General Public License.  Microchip only added some customizations of
+their own, including the machine definition for PIC24 (which is of some
+significant value beause of the weirdness of the architecture) but also
+including the \emph{deliberate crippling} of the C compiler's optimization
+features just so that they could demand a payment for a ``license key'' to
+restore those features!  That seems to be not in the spirit of fulfilling
+their obligations to the original authors of the code in question.
+
+\section{Building the firmware}
+
+Unpack the source distribution and go to the \texttt{firmware} subdirectory.
+Edit the XC16DIR environment variable at the top of the
+firmware Makefile to point at where you have installed XC16.
+
+To build the firmware, run \texttt{make} in the \texttt{firmware}
+subdirectory of an unpacked Gracious Host source distribution.  You can also
+run \texttt{make} in the root of the distribution (one level above) to
+recurse into subdirectories and build documentation too.
+
+The Makefile is written assuming GNU Make and supports a ``clean'' target to
+remove object and temporary files, and a ``debug'' target which actually
+does the same thing as \texttt{make} or \texttt{make all}; this is
+intended to help support the MPLAB X IDE, which tries to draw a distinction
+between ``debug'' and ``production'' builds.
+
+The build process is a bit complicated, especially when it comes to
+preparing a loadable image for the module to re-flash itself from USB. 
+There are several steps of scanning object files, extracting addresses, and
+rewriting include files to get information into the boot loader.  Because
+the loadable image includes checksums covering other checksums, there is
+also a loop that builds an image with checksums, recalculates the checksums
+and writes them in, then tries again until all checksums match and require
+no further changes.  It will \emph{not} work to just assemble the source
+files and link them; you need to really use the supplied Makefile and
+associated Perl scripts.  Note that this also means you should not allow a
+tool like MPLAB X IDE to destroy the supplied Makefile.
+
+A Perl interpreter is required, and it needs to have the String::CRC32
+module installed.  Other Perl modules may possibly also need to be
+installed; I'm not sure which ones are commonly found on default
+installations.  \emph{Pay attention to build error messages} and supply the
+missing pieces as necessary.
+
+\section{MPLAB X IDE}
+
+Microchip's ``MPLAB X IDE'' product has many issues, but it may be a
+necessary evil if you wish to do in-circuit debugging with a tool like their
+PICkit programmer/debugger.  The main problem is that MPLAB X IDE wants to
+\emph{put itself on top}:  that is, it wants to be in charge of the build
+process and have other tools become part of its system instead of it being a
+part of some larger system.  If you must use MPLAB X IDE, here are some tips
+on getting it to work.
+
+You will need to create a ``project.''  When doing so (first screen of the
+wizard, titled ``Choose Project''), choose ``User Makefile Project'' as the
+type to create.
+
+On the ``Select Device'' screen, choose ``PIC24FJGB002'' as the device,
+and your choice of tool (Simulator, PICkit, or whatever).  The ``Family''
+field seems to only narrow down the drop-down options for the device list;
+the most useful value is ``16-bit MCUs (PIC24)'' but you may get better
+results by typing the number directly into the device box instead of digging
+through the (very long, even when narrowed) list of all possible MCUs.
+
+On the ``Select Project Name and Folder'' screen, it is important to check
+the ``Use project location as the project folder'' box (which is not
+default) and select the ``project location'' to be the \texttt{firmware}
+subdirectory of the unpacked Gracious Host source distribution.  If this is
+not done, MPLAB X IDE will attempt to create a ``project'' directory with a
+.X extension and will expect all builds to happen there, which will not work.
+
+On the ``Create User Makefile Project'' screen, set the ``working
+directory'' to ``.'' (that is one period, meaning current directory) and set
+the following values.
+\begin{itemize}
+  \item Build command:  \texttt{make}
+  \item Debug build command:  \texttt{make debug}
+  \item Clean command:  \texttt{make clean}
+  \item Image name:  \texttt{firmware.elf}
+  \item Debug image name:  \texttt{firmware.elf}
+\end{itemize}
+
+Creating a project this way will probably overwrite the existing Makefile,
+so you may have to re-extract it from the source distribution.  I believe
+these settings will prevent MPLAB X IDE from overwriting the Makefile
+\emph{again} in the future, however -- it only seems to do it on the initial
+project creation.
+
+In-circuit debugging with MPLAB X IDE and a debugging tool like a PICkit has
+two modes for breakpoints: hardware breakpoints and software breakpoints,
+the latter also called ``unlimited'' breakpoints.  Hardware breakpoints make
+use of features built into the silicon.  They have less performance impact,
+and they can do clever things like breaking on access to a data memory
+address (not only an instruction execution).  However, there is an overrun
+associated with hardware breakpoints: after a hardware breakpoint triggers,
+one more instruction will execute before the code actually stops.  That can
+be annoying.  It is possible to work around the overrun by simply placing
+the breakpoint one instruction earlier than the point where you really want
+it to break, but in densely branching control flow it may not always be
+possible to know which instruction is ``one instruction earlier,'' and this
+workaround is not applicable to breaking immediately upon wakeup from idle
+mode, nor to the debugger's ``run until return'' feature.  Also, you only
+get four hardware breakpoints, and \emph{really} you only get three, because
+debugger features like single-stepping also depend on the silicon resources
+involved.
+
+So MPLAB X IDE will urge you to switch to software breakpoints when you
+approach the limit for hardware breakpoints, with pop-ups that do not
+explain the consequences of saying ``yes.'' It is easy to make this switch
+by accident.  I have several times found software breakpoints selected when
+I was not aware of having deliberately selected them.  The number of
+software breakpoints is unlimited, and they really break at the specified
+locations.  The trouble is, they are implemented by repeatedly erasing and
+reprogramming the chip's program memory -- the debugger actually edits the
+code on the fly, presumably to insert the undocumented \insn{break}
+instruction.  That can wear out the chip's program memory relatively
+quickly.  The chip's program memory is supposed to be good for 10,000 erase
+cycles, which should be plenty (comparable to the lifespan of components
+like jack sockets) in normal module use where someone might be recalibrating
+their module or swapping in new firmware at most once per day long-term
+average.  But 10,000 erase cycles could quickly be used up if someone is
+doing intense debugging with software breakpoints enabled.  So I recommend
+avoiding software breakpoints, unless \emph{maybe} on a module specifically
+built for development purposes that you are willing to consider sacrificial
+if you wear the chip out.
+
+\section{The configuration include file}
+
+There are some configurable options in the file config.inc, which you can
+adjust as desired.  These are described in detail in the comments inside the
+file.  Some that may be of interest even in ``production'' firmware are for
+controlling things like the rate of pitch bend with the shift keys in the
+typing keyboard driver.
+
+Testing firmware during development is difficult on the live hardware, even
+with ICD, because the firmware needs to communicate with off-chip
+peripherals that have their own timing requirements, and the debugger only
+directly controls the chip and its on-chip peripherals.  If the firmware is
+in the middle of talking to a USB device when the debugger stops it, then it
+will probably be at least a few seconds before the microcontroller starts
+executing code again, and by then the USB device will long since have given
+up.  When first writing the firmware, I also wanted to do development on it
+before the Gracious Host module hardware existed at all; and when it existed
+but was not in its final form.  On non-live hardware or in a software
+simulator, peripherals designed for interacting with the outside world may
+not present sensible results to the firmware, because they do not have the
+normal outside world to work with.
+
+So there are a number of options in config.inc designed to help with testing
+the firmware other than in the normal hardware configuration.  The FRC\_OSC
+option activates the on-chip oscillator, for running on development boards
+with no external clock oscillator.  The NO\_WDT option disables the watchdog
+timer (although the debugger will probably handle that anyway).  And there
+are several symbols starting with SIMULATE\_ that assemble extra code to
+simulate different hardware devices included in the Gracious Host module;
+that way, the higher-level code that requires results from those devices can
+be tested on an evaluation board or even in Microchip's software simulator,
+where those devices cannot produce realistic results when accessed directly.
+
+Some other debugging aids are intended for use when running on the real
+hardware.  The FILL\_RAM\_DEAD symbol causes the firmware to fill all the
+general-purpose RAM with the value 0xDEAD at start-up.  That makes it easier
+to see where other data has been written, for detecting buffer overruns and
+similar.  The LEDS\_ON\_USB\_ATTACHED symbol is specifically for debugging
+detection of USB attach and detach (which took a lot of debugging when I was
+writing that code); it may conflict with other uses of the LEDs implemented
+later.  Define SEQUENTIAL\_CALIBRATION to make the two calibration threads
+run sequentially instead of simultaneously; the stack manipulation needed to
+get them running simultaneously screws up Microchip's debugger, so it's
+usually easier to turn it off when the multitasking itself is not the thing
+being debugged.  The TRAP\_HANDLERS symbol is a bitmask of stub trap
+handlers that should be defined, each of which will contain a couple of
+\insn{nop} instructions as a target for debugger breakpoints, before they
+all feed into a master trap handler that also serves as a target and then
+resets the microcontroller.  Putting breakpoints in trap handlers is useful
+when trying to figure out what kind of trap actually occurred, and to get a
+look at the stack, before the microcontroller resets.
+
+Pin~14 of the microcontroller (GPIO pin RB5) is run out to the test point~P5
+on the back of the module, and it can be useful for examining timing of
+firmware events while the code is running.  You can add instructions like
+\insn{bset} LATB, \#5 and \insn{bclr} LATB, \#5 at appropriate points in the
+code and then watch the test point with an oscilloscope to see what is going
+on, in something like the hardware equivalent of ``printf debugging.'' Two
+symbols are provided in config.inc, PULSE\_PIN14\_ON\_BUSY and
+PULSE\_PIN14\_ON\_SOF, for events that I wanted to watch often enough to be
+worth adding some infrastructure; but I also found it useful during
+development to add instructions at other points ad hoc, modifying the code
+as necessary, to trigger the scope on events of interest.
+
+Some more elaborate tests are written in assembly language and designed to
+be run using the debugger or simulator.  These are controlled by symbols
+starting TEST\_, each of which assembles a short infinite-loop test routine. 
+If SKIP\_TESTS is \emph{not} defined, then after initial reset the code will
+jump to one of these tests instead of the firmware main loop (and cause a
+crash if none of them are activated); so SKIP\_TESTS needs to be defined in
+a ``production'' version.  The different tests are described in their own
+chapter, later in this manual.
+
+\section{Special-purpose include files}
+
+As often happens in complicated software builds, it is sometimes necessary
+to pass small chunks of information among different files outside the usual
+source/object file pattern.  For instance, building an installable image for
+firmware updating requires knowing the final addresses of symbols in memory,
+which have to be determined by scanning the linker output.
+The Gracious Host firmware build generates
+several include files automatically, which get included in appropriate
+source files to pass this kind of information around.  They are summarized
+here and discussed in more detail in the chapters for the specific source
+files involved.
+
+\begin{description}
+\item[notetbl.inc] A table of period values to be used with output compare
+units for generating musical-note frequencies; generated by the mknotetbl
+Perl script and included in firmware.s.
+
+\item[rndpage.inc] Defines a randomly-chosen page of program memory that
+will be used for calibration data by calibration.s.  The random selection is
+made by inline Perl code in the Makefile.
+
+\item[simdrive.inc] Defines the contents of the simulated USB Mass Storage
+device for testing the FAT code.  Included by usbmass.s, conditionally on
+drive simulation being enabled by config.inc.  This include file is
+handwritten, but in some configurations it depends on binary data generated
+by the mksimdrives script, which in turn needs to be manually invoked (the
+Makefile will not do it) because it needs to run as root to mount and
+unmount loopback devices.
+
+\item[loader-addr.inc] Included by loader.s when assembling the ``high''
+version of the loader, to tell it exactly where in memory that copy should
+be placed.  Created by the mkloaddr Perl script, after measuring the size of
+the ``low'' version of the loader.
+
+\item[image-syms.inc]  Defines addresses and CRC values that will need to be
+written into the loadable firmware image.  The Makefile creates this using
+the mkimagesyms Perl script, in a loop:  first it creates an image using
+placeholder values (which will \emph{not} be loadable), then generates new
+values for all the symbols based on that image, re-generates the image with
+the new values, and repeats until the values do not change.
+
+\item[fw-pages.inc]  Page occupancy (symbols identifying which program
+memory pages will need to be overwritten) for the loadable image.  Generated
+by the dmp2bin perl script after scanning the firmware ELF image.
+
+\item[image-id.inc]  Identifying information (hostname, username, and the
+date) added to the header of the loadable image to make it easier to
+recognize the provenance of random binary images.
+\end{description}
+
+\section{The listing file}
+
+Run \texttt{make listing.pdf} to generate a pretty-printed PDF of all the
+listing files generated during firmware assembly.  This mostly just exists
+because I think it looks cool, but it may be easier to read than the
+original .s source files, and because it also includes a hex dump of the
+assembler's output, it can sometimes be useful for purposes like debugging
+loader image files, when it may be desired to find the exact bytes that
+correspond to particular lines of code.

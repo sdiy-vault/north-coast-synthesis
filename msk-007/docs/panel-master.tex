@@ -1,0 +1,239 @@
+% $Id: panel-master.tex 9284 2021-07-27 15:34:52Z mskala $
+
+%
+% MSK 007 panel design (master)
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={80.90mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (lrrh) at ($(o)+(73.54mm,3.00mm)$) {};
+  \coordinate (urrh) at ($(o)+(73.54mm,125.50mm)$) {};
+  \coordinate (c) at ($(llrh)!0.5!(urrh)$) {};
+  \coordinate (llbh) at ($(c)+(-1.300in,-1.750in)$) {};
+  \coordinate (ulbh) at ($(c)+(-1.300in,1.750in)$) {};
+  \coordinate (lrbh) at ($(c)+(1.300in,-1.750in)$) {};
+  \coordinate (urbh) at ($(c)+(1.300in,1.750in)$) {};
+  \coordinate (vcajack) at ($(c)+(0.900in,-0.900in)$) {};
+  \coordinate (linfmjack) at ($(c)+(0.050in,-0.900in)$) {};
+  \coordinate (expfmjack) at ($(c)+(-0.800in,-0.900in)$) {};
+  \coordinate (outjack) at ($(c)+(0.900in,-1.600in)$) {};
+  \coordinate (voctjack) at ($(c)+(0.050in,-1.600in)$) {};
+  \coordinate (injack) at ($(c)+(-0.800in,-1.600in)$) {};
+  \coordinate (coarsetunepot) at ($(c)+(-0.800in,1.700in)$) {};
+  \coordinate (finetunepot) at ($(c)+(0.300in,1.700in)$) {};
+  \coordinate (expfmpot) at ($(c)+(-0.800in,-0.200in)$) {};
+  \coordinate (linfmpot) at ($(c)+(0.050in,-0.200in)$) {};
+  \coordinate (vcapot) at ($(c)+(0.900in,-0.200in)$) {};
+  \coordinate (modeswitch) at ($(c)+(0.900in,0.400in)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (80.90,128.50);
+%  panel graphics
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(expfmjack)+(-3in/8,-7in/16)$) rectangle
+    ($(expfmpot)+(3in/8,5in/16)$);
+  \node at ($(expfmjack)+(0,-5in/16)$) {\large EXP FM};
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(linfmjack)+(-3in/8,-7in/16)$) rectangle
+    ($(linfmpot)+(3in/8,5in/16)$);
+  \node at ($(linfmjack)+(0,-5in/16)$) {\large LIN FM};
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(vcajack)+(-3in/8,-7in/16)$) rectangle
+    ($(vcapot)+(3in/8,5in/16)$);
+  \node at ($(vcajack)+(0,-5in/16)$) {\large VCA};
+  \node at ($(modeswitch)+(-3in/8,1.5mm)$) {F};
+  \node at ($(modeswitch)+(-3in/8,-1.5mm)$) {B};
+  \node at ($(modeswitch)+(3in/8,3mm)$) {O};
+  \node at ($(modeswitch)+(3in/8,0)$) {U};
+  \node at ($(modeswitch)+(3in/8,-3mm)$) {T};
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(injack)+(-3in/8,-8in/16)$) rectangle
+    ($(injack)+(3in/8,3in/16)$);
+  \node at ($(injack)+(0,-6in/16)$) {\large IN};
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(voctjack)+(-3in/8,-8in/16)$) rectangle
+    ($(voctjack)+(3in/8,3in/16)$);
+  \node at ($(voctjack)+(0,-6in/16)$) {\large 1V/8ve};
+  \draw[very thick,black,fill=blue!30!black,
+        rounded corners=9.525]
+    ($(outjack)+(-3in/8,-8in/16)$) rectangle
+    ($(outjack)+(3in/8,3in/16)$);
+  \node[text=white] at ($(outjack)+(0,-6in/16)$) {\large\textbf{OUT}};
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners=9.525]
+    ($(coarsetunepot)+(-4in/8,-12in/16)$) rectangle
+    ($(finetunepot)+(4in/8,8in/16)$);
+  \node at ($0.5*(coarsetunepot)+0.5*(finetunepot)+(0,-7in/16)$)
+    {\large TUNING};
+  \node at ($(coarsetunepot)+(0,-10in/16)$) {\large coarse};
+  \node at ($(finetunepot)+(0,-10in/16)$) {\large fine};
+
+  \node at ($0.5*(coarsetunepot)+0.5*(finetunepot)+
+            (0,-18.5in/16)$)
+    {\includegraphics[width=1.1in]{panel-mnelp.eps}};
+  \node at ($0.5*(coarsetunepot)+0.5*(finetunepot)+
+            (-7in/16,-19in/16)$)
+    {\parbox{1.0in}{\raggedright musical near-elliptic low pass}};
+%
+  \node at ($(current page.north)+(0,-4.0mm)$) {\large MSK 007 LEAPFROG FILTER};
+  \node at ($(current page.south)+(0,4.0mm)$) {\large NORTH COAST SYNTHESIS};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  \draw (lrrh) circle[radius=1.60mm];
+  \draw (urrh) circle[radius=1.60mm];
+  % board-to-panel mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llbh) circle[radius=1.60mm];
+  \draw (ulbh) circle[radius=1.60mm];
+  \draw (lrbh) circle[radius=1.60mm];
+  \draw (urbh) circle[radius=1.60mm];
+  % six jacks with M6 threads, 6.3mm holes
+  \draw (vcajack) circle[radius=3.15mm];
+  \draw (linfmjack) circle[radius=3.15mm];
+  \draw (expfmjack) circle[radius=3.15mm];
+  \draw (outjack) circle[radius=3.15mm];
+  \draw (voctjack) circle[radius=3.15mm];
+  \draw (injack) circle[radius=3.15mm];
+  % two pots for tuning, 9.7mm+2.2mm holes per manufacturer spec
+  % note the antirotation holes are on the left, not right, because
+  % these two pots are mounted "upside down" relative to the others
+  \draw (coarsetunepot) circle[radius=4.85mm];
+  \draw ($(coarsetunepot)+(-6.35mm,0)$) circle[radius=1.1mm];
+  \draw (finetunepot) circle[radius=4.85mm];
+  \draw ($(finetunepot)+(-6.35mm,0)$) circle[radius=1.1mm];
+  % three pots for modulation, 9.7mm+2.2mm holes per manufacturer spec
+  \draw (expfmpot) circle[radius=4.85mm];
+  \draw ($(expfmpot)+(6.35mm,0)$) circle[radius=1.1mm];
+  \draw (linfmpot) circle[radius=4.85mm];
+  \draw ($(linfmpot)+(6.35mm,0)$) circle[radius=1.1mm];
+  \draw (vcapot) circle[radius=4.85mm];
+  \draw ($(vcapot)+(6.35mm,0)$) circle[radius=1.1mm];
+  % mode switch, 6.35mm+2.38mm holes per manufacturer spec
+  \draw (modeswitch) circle[radius=3.175mm];
+  \draw ($(modeswitch)+(6.10mm,0)$) circle[radius=1.19mm];
+  \fi
+%
+  % hole centres (for panel graphics
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35mm];
+  \draw (ulrh) circle[radius=0.35mm];
+  \draw (lrrh) circle[radius=0.35mm];
+  \draw (urrh) circle[radius=0.35mm];
+  % board-to-panel mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llbh) circle[radius=0.35mm];
+  \draw (ulbh) circle[radius=0.35mm];
+  \draw (lrbh) circle[radius=0.35mm];
+  \draw (urbh) circle[radius=0.35mm];
+  % six jacks with M6 threads, 6.3mm holes
+  \draw (vcajack) circle[radius=0.35mm];
+  \draw (linfmjack) circle[radius=0.35mm];
+  \draw (expfmjack) circle[radius=0.35mm];
+  \draw (outjack) circle[radius=0.35mm];
+  \draw (voctjack) circle[radius=0.35mm];
+  \draw (injack) circle[radius=0.35mm];
+  % two pots for tuning, 9.7mm+2.2mm holes per manufacturer spec
+  % note the antirotation holes are on the left, not right, because
+  % these two pots are mounted "upside down" relative to the others
+  \draw (coarsetunepot) circle[radius=0.35mm];
+  \draw ($(coarsetunepot)+(-6.35mm,0)$) circle[radius=0.35mm];
+  \draw (finetunepot) circle[radius=0.35mm];
+  \draw ($(finetunepot)+(-6.35mm,0)$) circle[radius=0.35mm];
+  % three pots for modulation, 9.7mm+2.2mm holes per manufacturer spec
+  \draw (expfmpot) circle[radius=0.35mm];
+  \draw ($(expfmpot)+(6.35mm,0)$) circle[radius=0.35mm];
+  \draw (linfmpot) circle[radius=0.35mm];
+  \draw ($(linfmpot)+(6.35mm,0)$) circle[radius=0.35mm];
+  \draw (vcapot) circle[radius=0.35mm];
+  \draw ($(vcapot)+(6.35mm,0)$) circle[radius=0.35mm];
+  % mode switch, 6.35mm+2.38mm holes per manufacturer spec
+  \draw (modeswitch) circle[radius=0.35mm];
+  \draw ($(modeswitch)+(6.10mm,0)$) circle[radius=0.35mm];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,llbh,ulbh,lrbh,urbh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {vcajack,linfmjack,expfmjack,outjack,voctjack,injack} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+  }
+  % Davies 1900H clone knobs
+  \foreach \knobname in {expfmpot,linfmpot,vcapot} {
+    \path[draw=black,fill=black!30!white,
+      decorate,decoration={snake,amplitude=0.6}]
+      ($(\knobname)+(0,-0.85mm)$) circle[radius=6.05mm];
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(30:6mm)$);
+  }
+  % Davies 1510 clone knobs
+  \foreach \knobname in {coarsetunepot,finetunepot} {
+    \path[draw=black,shading=ball,
+      left color=black!20!white,right color=black!40!white]
+      (\knobname) circle[radius=9.5mm];
+    \draw ($(\knobname)+(125:9.5mm)$)--($(\knobname)+(265:9.5mm)$);
+    \draw ($(\knobname)+(85:9.5mm)$)--($(\knobname)+(305:9.5mm)$);
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(105:9.5mm)$);
+  }
+  % toggle switch
+  \path[draw=black,fill=black!20!white] (modeswitch) circle[radius=6.1mm];
+  \path[draw=black,fill=black!15!white] (modeswitch) circle[radius=3mm];
+  \path[draw=black,fill=black] (modeswitch) circle[radius=2mm];
+  \path[draw=black,fill=black!15!white]
+    ($(modeswitch)+(0,1.5mm)$)--($(modeswitch)+(6mm,1.5mm)$)
+    arc[radius=1.5mm,start angle=90,end angle=-90]
+    --($(modeswitch)+(0,-1.5mm)$)
+    arc[radius=1.5mm,start angle=270,end angle=90];
+  \fi
+\end{tikzpicture}%
+\end{document}

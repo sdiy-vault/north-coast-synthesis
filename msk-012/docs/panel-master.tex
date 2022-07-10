@@ -1,0 +1,182 @@
+% $Id: panel-master.tex 5949 2018-03-07 16:35:48Z mskala $
+
+%
+% MSK 012 panel design (master)
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={30.00mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (r15) at ($(o)+(20.00mm,47.74mm)$) {};
+  \coordinate (r10) at ($(o)+(20.00mm,68.06mm)$) {};
+  \coordinate (r11) at ($(o)+(20.00mm,88.38mm)$) {};
+  \coordinate (r4) at ($(o)+(20.00mm,108.70mm)$) {};
+  \coordinate (j2) at ($(o)+(10.50mm,17.90mm)$) {};
+  \coordinate (j1) at ($(o)+(10.50mm,30.60mm)$) {};
+  \coordinate (sw1) at ($(o)+(23.00mm,30.60mm)$) {};
+  \coordinate (d16) at ($(o)+(23.00mm,13.90mm)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (30.00mm,128.50mm);
+  %
+  \path[fill=blue!15!black!30!white] ($(o)+(1.0mm,110.0mm)$)
+    .. controls ($(o)+(8.0mm,109.0mm)$) and ($(o)+(15.0mm,105.0mm)$) ..
+    ($(o)+(18.0mm,99.0mm)$)
+    .. controls ($(o)+(13.0mm,94.0mm)$) and ($(o)+(11.0mm,84.0mm)$) ..
+    ($(o)+(10.5mm,77.0mm)$) --
+    ($(o)+(10.5mm,52.0mm)$)
+    .. controls ($(o)+(6.5mm,50.0mm)$) and ($(o)+(1.0mm,39.0mm)$) ..
+    ($(o)+(1.0mm,32.0mm)$);
+  \path[fill=blue!30!black]
+    ($(o)+(1.0mm,24.4mm)$) [rounded corners=3.0mm] --
+    ($(o)+(1.0mm,11.0mm)$) -- ($(o)+(17.0mm,11.0mm)$) --
+    ($(o)+(17.0mm,24.4mm)$) -- ($(o)+(1.0mm,24.4mm)$);
+  \draw[very thick] ($(o)+(1.0mm,110.0mm)$)
+    .. controls ($(o)+(8.0mm,109.0mm)$) and ($(o)+(15.0mm,105.0mm)$) ..
+    ($(o)+(18.0mm,99.0mm)$)
+    .. controls ($(o)+(13.0mm,94.0mm)$) and ($(o)+(11.0mm,84.0mm)$) ..
+    ($(o)+(10.5mm,77.0mm)$) --
+    ($(o)+(10.5mm,52.0mm)$)
+    .. controls ($(o)+(6.5mm,50.0mm)$) and ($(o)+(1.0mm,39.0mm)$) ..
+    ($(o)+(1.0mm,32.0mm)$) [rounded corners=3.0mm] --
+    ($(o)+(1.0mm,11.0mm)$) -- ($(o)+(17.0mm,11.0mm)$) --
+    ($(o)+(17.0mm,24.4mm)$) -- ($(o)+(1.0mm,24.4mm)$);
+    ;
+  %
+  \node at ($(r4)+(6.0mm,8.0mm)$) {\Huge A};
+  \node at ($(r11)+(6.0mm,8.0mm)$) {\Huge D};
+  \node at ($(r10)+(6.0mm,8.0mm)$) {\Huge S};
+  \node at ($(r15)+(6.0mm,8.0mm)$) {\Huge R};
+  %
+  \node[white] at ($(j2)-(6.6mm,0)$) {\Large\textbf{E}};
+  \node at ($(j1)-(6.6mm,0)$) {\Large G};
+  %
+  \node at ($(sw1)+(0,8.7mm)$) {\large slow};
+  \node at ($(sw1)-(0,8.7mm)$) {\large fast};
+  %
+  \node at ($(current page.north)+(5.3mm,-4.0mm)$) {\large MSK 012};
+  \node at ($(current page.north)+(-5.0mm,-9.7mm)$) {transistor};
+  \node at ($(current page.north)+(-5.7mm,-13.2mm)$) {envelope};
+  \node at ($(current page.south)+(5.0mm,7.0mm)$)
+    {\parbox{0.9in}{\linespread{0.75}\selectfont\center NORTH COAST}};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  % two jacks with M6 threads, 6.3mm holes
+  \draw (j2) circle[radius=3.15mm];
+  \draw (j1) circle[radius=3.15mm];
+  % four pots, 7.5mm+3.1mm holes per manufacturer spec
+  \draw (r15) circle[radius=3.75mm];
+  \draw ($(r15)+(0,7.8mm)$) circle[radius=1.55mm];
+  \draw (r10) circle[radius=3.75mm];
+  \draw ($(r10)+(0,7.8mm)$) circle[radius=1.55mm];
+  \draw (r11) circle[radius=3.75mm];
+  \draw ($(r11)+(0,7.8mm)$) circle[radius=1.55mm];
+  \draw (r4) circle[radius=3.75mm];
+  \draw ($(r4)+(0,7.8mm)$) circle[radius=1.55mm];
+  % LED in mounting clip, 6.35mm hole
+  \draw (d16) circle[radius=3.175mm];
+  % toggle switch, 6.35mm+2.38mm holes per manufacturer's spec
+  \draw (sw1) circle[radius=3.175mm];
+  \draw ($(sw1)+(0,6.1mm)$) circle[radius=1.19mm];
+  \fi
+%
+  % hole centres (for panel graphics
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35mm];
+  \draw (ulrh) circle[radius=0.35mm];
+  % two jacks with M6 threads, 6.3mm holes
+  \draw (j2) circle[radius=0.35mm];
+  \draw (j1) circle[radius=0.35mm];
+  % four pots, 7.5mm+3.1mm holes per manufacturer spec
+  \draw (r15) circle[radius=0.35mm];
+  \draw ($(r15)+(0,7.8mm)$) circle[radius=0.35mm];
+  \draw (r10) circle[radius=0.35mm];
+  \draw ($(r10)+(0,7.8mm)$) circle[radius=0.35mm];
+  \draw (r11) circle[radius=0.35mm];
+  \draw ($(r11)+(0,7.8mm)$) circle[radius=0.35mm];
+  \draw (r4) circle[radius=0.35mm];
+  \draw ($(r4)+(0,7.8mm)$) circle[radius=0.35mm];
+  % LED in mounting clip, 6.35mm hole
+  \draw (d16) circle[radius=0.35mm];
+  % toggle switch, 6.35mm+2.38mm holes per manufacturer's spec
+  \draw (sw1) circle[radius=0.35mm];
+  \draw ($(sw1)+(0,6.1mm)$) circle[radius=0.35mm];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {j1,j2} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+  }
+  % Davies 1900H clone knobs
+  \foreach \knobname in {r15,r10,r11,r4} {
+    \path[draw=black,fill=black!30!white,
+      decorate,decoration={snake,amplitude=0.6}]
+      ($(\knobname)+(0,-0.85mm)$) circle[radius=6.05mm];
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(30:6mm)$);
+  % switch
+  \path[draw=black,fill=black!20!white] (sw1) circle[radius=6.1mm];
+  \path[draw=black,fill=black!15!white] (sw1) circle[radius=3mm];
+  \path[draw=black,fill=black] (sw1) circle[radius=2mm];
+  \path[draw=black,fill=black!15!white]
+    ($(sw1)+(1.5mm,0)$)--($(sw1)+(1.5mm,6mm)$)
+    arc[radius=1.5mm,start angle=0,end angle=180]
+    --($(sw1)+(-1.5mm,0)$)
+    arc[radius=1.5mm,start angle=180,end angle=360];
+  % LED in its holder
+  \path[fill=black!80!white] (d16) circle[radius=3.9mm];
+  \path[shading=ball,ball color=red]
+    (d16) circle[radius=2.50mm];
+  }
+  \fi
+\end{tikzpicture}%
+\end{document}

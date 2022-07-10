@@ -1,0 +1,178 @@
+% $Id: panel-master.tex 9493 2021-10-26 22:07:41Z mskala $
+
+%
+% MSK 010 panel design (master)
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={40.30mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (c) at (current page.center);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (lrrh) at ($(o)+(32.90mm,3.00mm)$) {};
+  \coordinate (urrh) at ($(o)+(32.90mm,125.50mm)$) {};
+  \coordinate (lbh) at ($(c)+(0,-1.800in)$) {};
+  \coordinate (ubh) at ($(c)+(0,1.800in)$) {};
+  \coordinate (jack1) at ($(c)+(-0.350in,1.500in)$) {};
+  \coordinate (jack2) at ($(c)+(-0.350in,0.500in)$) {};
+  \coordinate (jack3) at ($(c)+(-0.350in,-0.500in)$) {};
+  \coordinate (jack4) at ($(c)+(-0.350in,-1.500in)$) {};
+  \coordinate (jack5) at ($(c)+(0.350in,1.500in)$) {};
+  \coordinate (jack6) at ($(c)+(0.350in,0.500in)$) {};
+  \coordinate (jack7) at ($(c)+(0.350in,-0.500in)$) {};
+  \coordinate (jack8) at ($(c)+(0.350in,-1.500in)$) {};
+  \coordinate (led1) at ($(jack1)+(0,0.350in)$) {};
+  \coordinate (led2) at ($(jack2)+(0,0.350in)$) {};
+  \coordinate (led3) at ($(jack3)+(0,0.350in)$) {};
+  \coordinate (led4) at ($(jack4)+(0,0.350in)$) {};
+  \coordinate (led5) at ($(jack5)+(0,0.350in)$) {};
+  \coordinate (led6) at ($(jack6)+(0,0.350in)$) {};
+  \coordinate (led7) at ($(jack7)+(0,0.350in)$) {};
+  \coordinate (led8) at ($(jack8)+(0,0.350in)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (40.30,128.50);
+%  panel graphics
+  \path[draw=black,very thick,shading=axis,top color=blue!10!white,
+        bottom color=blue!40!black,
+        middle color=blue!50!gray]
+    ($(jack1)!0.5!(jack5)+(0,1in/2)$)
+    -- ($(jack4)!0.5!(jack8)+(0,-3in/8)$)
+    {[rounded corners=9.525] -- ($(jack4)+(-5in/16,-3in/8)$)
+     -- ($(jack1)+(-5in/16,1in/2)$)} --cycle;
+  \path[draw=black,very thick,shading=axis,top color=red!70!blue!10!white,
+        bottom color=red!70!blue!40!black,middle color=red!70!blue!50!gray]
+    ($(jack1)!0.5!(jack5)+(0,1in/2)$)
+    -- ($(jack4)!0.5!(jack8)+(0,-3in/8)$)
+    -- ($(jack8)+(3in/32,-3in/8)$)
+    {[rounded corners=9.525] -- ($(jack8)+(3in/32,-1in/8)$)}
+    -- ($(jack8)+(5in/16,-1in/8)$)
+    {[rounded corners=9.525] -- ($(jack5)+(5in/16,1in/2)$)} --cycle;
+  \node at ($(jack8)+(7in/32,-1in/4)$) {A};
+  \node at ($(jack8)+(7in/32,-3in/8)$) {B};
+  \node at ($(jack8)+(7in/32,-1in/2)$) {C};
+  \draw ($(jack8)+(11in/32,-1in/4+0.15mm)$) circle[radius={3in/64}];
+  \draw ($(jack8)+(11in/32,-3in/8+0.15mm)$) circle[radius={3in/64}];
+  \draw ($(jack8)+(11in/32,-1in/2+0.15mm)$) circle[radius={3in/64}];
+%
+  \node at ($(current page.north)+(0,-4.0mm)$) {\large MSK 010};
+  \node at ($(current page.north)+(0,-9.0mm)$) {FIXED SINE BANK};
+  \node at ($(current page.south)+(0,9.0mm)$)
+    {\parbox{1.0in}{\center NORTH~COAST SYNTHESIS}};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  \draw (lrrh) circle[radius=1.60mm];
+  \draw (urrh) circle[radius=1.60mm];
+  % board-to-panel mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (lbh) circle[radius=1.60mm];
+  \draw (ubh) circle[radius=1.60mm];
+  % eight jacks with M6 threads, 6.3mm holes
+  \draw (jack1) circle[radius=3.15mm];
+  \draw (jack2) circle[radius=3.15mm];
+  \draw (jack3) circle[radius=3.15mm];
+  \draw (jack4) circle[radius=3.15mm];
+  \draw (jack5) circle[radius=3.15mm];
+  \draw (jack6) circle[radius=3.15mm];
+  \draw (jack7) circle[radius=3.15mm];
+  \draw (jack8) circle[radius=3.15mm];
+  % eight LEDs, 5.10mm holes
+  \draw (led1) circle[radius=2.55mm];
+  \draw (led2) circle[radius=2.55mm];
+  \draw (led3) circle[radius=2.55mm];
+  \draw (led4) circle[radius=2.55mm];
+  \draw (led5) circle[radius=2.55mm];
+  \draw (led6) circle[radius=2.55mm];
+  \draw (led7) circle[radius=2.55mm];
+  \draw (led8) circle[radius=2.55mm];
+  \fi
+%
+  % mark holes (for panel print)
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.15mm];
+  \draw (ulrh) circle[radius=0.15mm];
+  \draw (lrrh) circle[radius=0.15mm];
+  \draw (urrh) circle[radius=0.15mm];
+  % board-to-panel mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (lbh) circle[radius=0.15mm];
+  \draw (ubh) circle[radius=0.15mm];
+  % eight jacks with M6 threads, 6.3mm holes
+  \draw (jack1) circle[radius=0.15mm];
+  \draw (jack2) circle[radius=0.15mm];
+  \draw (jack3) circle[radius=0.15mm];
+  \draw (jack4) circle[radius=0.15mm];
+  \draw (jack5) circle[radius=0.15mm];
+  \draw (jack6) circle[radius=0.15mm];
+  \draw (jack7) circle[radius=0.15mm];
+  \draw (jack8) circle[radius=0.15mm];
+  % eight LEDs, 5.10mm holes
+  \draw (led1) circle[radius=0.15mm];
+  \draw (led2) circle[radius=0.15mm];
+  \draw (led3) circle[radius=0.15mm];
+  \draw (led4) circle[radius=0.15mm];
+  \draw (led5) circle[radius=0.15mm];
+  \draw (led6) circle[radius=0.15mm];
+  \draw (led7) circle[radius=0.15mm];
+  \draw (led8) circle[radius=0.15mm];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,lbh,ubh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {jack1,jack2,jack3,jack4,jack5,jack6,jack7,jack8} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+  }
+  % LEDs with red/green gradient
+  \foreach \ledname in {led1,led2,led3,led4,led5,led6,led7,led8} {
+    \path[shading=ball,left color=green,right color=red]
+      (\ledname) circle[radius=2.50mm];
+  }
+  \fi
+\end{tikzpicture}%
+\end{document}

@@ -1,0 +1,56 @@
+{\setmainfont[Path={../../tsukurimashou/otf/},
+BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}%
+% start out defining coordinates
+\coordinate (lbh) at (4.91mm,31.23mm) {};
+\coordinate (j1) at (8.72mm,59.17mm) {};
+\coordinate (j2) at (27.77mm,59.17mm) {};
+\coordinate (j3) at (8.72mm,40.12mm) {};
+\coordinate (j4) at (27.77mm,40.12mm) {};
+\coordinate (j5) at (8.72mm,21.07mm) {};
+\coordinate (j6) at (27.77mm,21.07mm) {};
+\coordinate (d5) at (8.72mm,50.28mm) {};
+\coordinate (d6) at (27.77mm,50.28mm) {};
+%
+\draw (0,11.07mm) -- (0,69.07mm);
+\draw (40.30mm,11.07mm) -- (40.30mm,69.07mm);
+%
+\draw[very thick,black] (j1) -- (j3);
+\draw[very thick,black] (j2) -- (j4);
+\draw[very thick,black,fill=blue!30!black!20!white,rounded corners=3.0mm]
+  (40.30mm,47.12mm) -- (3.72mm,47.12mm) --
+  (3.72mm,14.07mm) -- (40.33mm,14.07mm);
+\node[black!30!white] at ($(j1)!0.5!(j2)$) {\large IN};
+\node[white] at ($(j3)!0.5!(j4)$) {\large\textbf{CV}};
+\node[white] at ($(j5)!0.5!(j6)$) {\large\textbf{GT}};
+%
+% board-to-panel mounting holes, to clear M3 machine screw
+\draw (lbh) circle[radius=1.60mm];
+% six jacks with M6 threads, 6.3mm holes
+\draw (j1) circle[radius=3.15mm];
+\draw (j2) circle[radius=3.15mm];
+\draw (j3) circle[radius=3.15mm];
+\draw (j4) circle[radius=3.15mm];
+\draw (j5) circle[radius=3.15mm];
+\draw (j6) circle[radius=3.15mm];
+% two LEDs, 5.20mm holes
+\draw (d5) circle[radius=2.60mm];
+\draw (d6) circle[radius=2.60mm];
+%
+% mock up screw heads, knobs
+% machine screws with 6mm heads
+\foreach \screwname in {lbh} {
+  \path[draw=black,shading=ball,
+    left color=black!10!white,right color=black!60!white]
+    (\screwname) circle[radius=3mm];
+  \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+  \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+}
+% jacks with knurled nuts
+\foreach \jackname in {j1,j2,j3,j4,j5,j6} {
+  \path[draw=black,fill=black!20!white,
+    decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+    ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+  \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+  \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+}
+}

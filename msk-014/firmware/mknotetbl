@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+# $Id: mknotetbl 9837 2022-02-13 17:27:02Z mskala $
+
+# Note-period table generator
+# Copyright (C) 2022  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+
+@nn=(
+  'CX','C#X/DbX','DX','D#X/EbX','EX','FX',
+  'F#X/GbX','GX','G#X/AbX','AX','A#X/BbX','BX'
+);
+
+for ($i=0;$i<=128;$i++) {
+  $f=440*exp(($i-69)*log(2)/12);
+  $n=int((2.0e6/$f)+0.5)-1;
+  if ($n>65535)  {
+    $n=0;
+    $overflow=' XXX';
+  } else {
+    $overflow='';
+  }
+  $nn=$nn[$i%12];
+  if ($i>=12) {
+    $o=int($i/12)-1;
+    $nn=~s/X/$o/g;
+  }
+  printf ".word 0x%04X\t; %3d %-7s %9.3f Hz%s\n",
+    $n,$i,$nn,$f,$overflow;
+}

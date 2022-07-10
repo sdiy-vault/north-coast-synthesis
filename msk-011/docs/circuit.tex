@@ -1,0 +1,217 @@
+% $Id: circuit.tex 5953 2018-03-09 02:14:49Z mskala $
+
+%
+% MSK 011 circuit explanation
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Circuit explanation}
+
+The MSK~011 is an attempt at minimalist design; the simplest
+transistor-based mixer circuit that will still be usable.  It is designed
+with modern components, which makes some issues easier to address, but the
+basic operating principles go all the way back to the earliest transistor
+(and, to some extent, vacuum tube) amplifying circuits.
+
+\section{Transistor rules}
+
+Consider a simple NPN bipolar transistor.
+
+{\centering\input{transistor.tex}\par}
+
+The behaviour of all the transistors in the MSK~011 can be understood by two
+simple rules.  These are only approximations, and they are specific to NPN
+transistors operating in the mode used here.
+
+\emph{Current rule:}  The current flowing into the collector (C) is
+approximately equal to the current flowing out of the emitter (E), and there
+is approximately no current through the base (B).
+
+\emph{Voltage rule:}  The base is approximately 0.7V more positive than the
+emitter, and the collector is whatever voltage it needs to be to obey the
+current rule, provided that is above the emitter voltage.
+
+These rules cut in all directions.  A transistor will, to the extent it can,
+change the voltages and currents at all of its terminals in order to obey
+the rules---changing the voltage at the emitter to be 0.7V less than the
+base when the base is driven to a specific voltage by external circuity, but
+also changing the voltage at the base to 0.7V above the emitter when the
+emitter is driven to a specific voltage, and so on.  If the transistor
+cannot obey the rules, then they are not sufficient to understand the
+circuit in question and we need to apply other, more detailed, theory.  But
+in the MSK~011 during normal operation, these simple rules are a good
+description of what is going~on.
+
+\pagebreak
+
+\section{Input buffers}
+
+The MSK~011 contains four input buffers.  Here is the schematic for one of
+them; the others are identical.
+
+{\centering\input{buffer.tex}\par}
+
+The signal enters from the right and is attenuated by the potentiometer R2. 
+Depending on the position of the knob, somewhere from 0 to 100\%\ of the
+input voltage is applied to the base of Q1.  Then, by the voltage rule, the
+transistor will drive its emitter to 0.7V less than the voltage applied to
+the base.  That will draw some amount of current through the resistor R8,
+and the same amount of current is drawn from the power supply at the
+transistor collector.
+
+The load at the input jack looks like a fairly constant 100k$\Omega$
+resistance; the transistor only places negligible load on whatever is
+driving the input.  Meanwhile, we can push or pull a relatively large amount
+of current through the output and the transistor will adjust its current
+draw from the positive power supply to keep the output at the right voltage,
+always 0.7V less than the attenuated input.  If something else tries to pull
+the output up, then up to the limit of the roughly 500$\mu$A of current that
+is flowing through R8, the transistor will just provide a smaller share of
+that current and allow the external circuit to provide the rest, keeping the
+voltage across the resistor unchanged.  Similarly, if the external circuit
+tries to pull the output down, the transistor (up to its limits) will just
+draw more current from the positive supply to satisfy the external circuit
+while keeping its emitter 0.7V below its base.
+
+Therefore, what happens at the output of this circuit in terms of current
+draw is not seen at the input.  The input is said to be ``buffered'' against
+fluctuations in the output.  Such a buffer is useful in this mixer module
+because it helps prevent crosstalk between the input channels.
+
+This kind of transistor circuit is called an \emph{emitter follower},
+because the voltage at the emitter follows or copies (except for the 0.7V
+offset) the voltage applied to the base.  It is also called a
+\emph{common collector amplifier}; the collector of the transistor is
+connected to the ``common'' connection of the positive power supply. 
+Although this circuit has no voltage gain (it adds an offset, but does not
+multiply voltage changes in the input by anything other than 1), it serves
+as a current amplifier because the current available at the output is
+potentially much more than that consumed at the input.
+
+One detail not shown on the above diagram, but visible in the full schematic
+on page~\pageref{fig:schematic}, is the input normalling:  channels~1 and~4
+have the switching contacts on their jack sockets connected to the power
+supplies through 100k$\Omega$ resistors, so that if there is no signal
+plugged into these channels, you can turn up their knobs to create a DC
+offset (positive for channel~1, negative for channel~4).  Because of the
+100k$\Omega$ resistors in series with the 100k$\Omega$ resistance of the
+attenuator pot, the maximum offset in either direction is about 6V.
+
+\section{Mixing network}
+
+After buffering, the four input signals go through a passive mixing network
+which combines them in equal proportion, attenuating them and shifting them
+into a range of voltages near the negative power supply, in order to hit the
+desired input range for the output amplifier.  This network is adjustable
+with a trimmer pot on the circuit board, to compensate for variations in the
+offsets of the transistors throughout the circuit, which are only (under the
+voltage rule above) \emph{approximately} 0.7V each.
+
+{\centering\input{mixer.tex}\par}
+
+Note the low-valued resistor R17, just 2.7k$\Omega$ to the negative supply. 
+The other resistances are much larger, making this network function as a
+fairly strong fixed attenuator; the large signal range at the input
+translates into a small range at the input of the next stage.
+
+\section{Output amplifier}
+
+The signal from the mixing network needs to be amplified back up to modular
+level, and shifted to be centred on zero.
+
+{\centering\input{outamp.tex}\par}
+
+This is a two-stage \emph{common emitter} amplifier; the emitter of each
+transistor is connected (through the low-value resistors R19 and R23) to the
+common $-$12V power supply.
+
+As the input signal runs over its small range near the lower power supply
+voltage, the transistor Q5 (under the voltage rule) forces its emitter to
+follow that voltage, approximately 0.7V down.  This voltage across the
+510$\Omega$ resistor R19 induces a proportional current.  Then, under the
+current rule, the transistor draws the same amount of current through the
+5.9k$\Omega$ resistor R18, which causes the voltage across that resistor to
+also vary in proportion.  The collector voltage of Q5 floats to take up the
+slack voltage, in accordance with the transistor voltage rule.  But because
+R18 is \emph{a bigger resistor}, the same current variation causes a larger
+voltage variation across R18.  The circuit exhibits voltage gain:  a small
+voltage change on the input results in a larger voltage change on the
+output.
+
+As a first approximation we can say that the voltage gain of the first stage
+(Q5) is equal to R18 divided by R19; a change of 1V on the transistor base
+and therefore on R19 results in 1$/$R19 current change which results in
+R18/R19 voltage change on R19.  Really, the gain is a little less than that
+because of the current consumed by the resistive coupling network between Q5
+and Q6.  A more accurate estimate comes from measuring the ratio between R19
+and the parallel combination of R18 with the R20$+$R21 network, which gives
+a voltage gain of $-9.86$.  The voltage gain is \emph{negative}.  Lower
+voltages on the input give higher voltages on the output (at the collector
+of Q5), because lower input voltages mean less current through R19, less
+current through R18, and therefore less voltage drop across R18, bringing
+the collector of Q5 and low end of R18 closer to the positive supply.
+
+The inverted signal at the collector of Q5 goes through the resistor network
+(R20 and R21) to again bring it into the negative-voltage range needed for
+input to one of these common-emitter stages, and then Q6, R22, and R23
+amplify and invert it again.  The Q6 amplifier stage has a little bit less
+voltage gain because of the smaller resistor R22, but otherwise is identical
+in operation to the Q5 stage.  And the result is used directly as the
+module's DC-coupled output.
+
+The main reason for using \emph{two} amplifier stages here is so that the
+module's overall response will be non-inverting.  Another reason is that,
+despite the loss in the coupling network between the two stages, doing it
+this way allows each single amplifier to work at a lower gain, which makes
+it easier to control their gains precisely and reduces risks from things
+like feedback.  The 2N5088 transistors recommended here can run comfortably
+at much higher gain per stage, but using them that way would make the
+response more dependent on variation among individual transistors,
+temperature, and so on.
+
+\section{AC coupling network}
+
+The output from Q6 is used directly as the DC-coupled output of the module. 
+Having a DC-coupled output is more or less necessary in a Eurorack mixer
+because people want to use them for DC control voltages.  However, it is an
+unavoidable fact of using such a minimal circuit design that there is some
+dependence on transistor behaviour, and in particular, on temperature.  That
+offset between base and emitter that I called ``approximately 0.7V''
+actually depends a lot on temperature, and a little on the individual
+transistors.  One consequence is that the exact ranges of signal voltages
+will shift with temperature; zero voltage on all inputs to the mixer may not
+give zero volts at the DC-coupled output.  The offset trimmer can be
+adjusted to eliminate the offset at some typical temperature, but as the
+temperature changes, it will fall out of trim again.
+
+So for use with audio signals, the MSK~011 also provides an AC-coupled
+output, using a simple RC high-pass network.
+
+{\centering\input{coupler.tex}\par}
+
+Applying the formula for RC cutoff frequency with a 4.7$\mu$F capacitor and
+330k$\Omega$ resistor suggests that this will roll off signals below about
+0.10Hz.  Really, the input impedance of whatever it's plugged into,
+appearing in parallel with R24, will have the effect of reducing the
+resistance and increasing the corner frequency; but even driving a
+low-impedance ``passive'' module it should pass all reasonable audio
+frequencies.  The real point of R24 is not so much to create a controlled
+roll-off frequency as to drain away any static charges that might from time
+to time appear on the output pin; and the point of the network as a whole is
+to block DC.

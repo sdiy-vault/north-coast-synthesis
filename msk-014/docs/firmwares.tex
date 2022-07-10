@@ -1,0 +1,298 @@
+% $Id: firmwares.tex 9772 2022-01-19 04:17:12Z mskala $
+
+%
+% Gracious Host firmware framework
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Firmware framework (firmware.s)}
+
+The firmware.s file contains what might be called the ``main program'' of
+the firmware:  the code that runs at power-on reset, sets up the basic
+configuration of the hardware, and then dispatches to
+other modules.  It also contains some global infrastructure that simply
+needed to be \emph{somewhere}, such as the declaration of the common data
+area.
+
+In this chapter I also describe the global include file, global.inc.
+
+\section{Microcontroller configuration}
+
+The configuration registers (``fuses'') and their values are declared at the
+start of firmware.s, with some conditional assembly to take into account
+configuration settings from config.inc.
+
+At the bottom of this section there is also a quick declaration of the
+common data area for use by the \insn{in\_common} macro.
+
+\section{Last page}
+
+The last 1.5K page of program memory cannot be reprogrammed (or,
+technically, it cannot be safely \emph{erased}) by the microcontroller under
+its own software control; only by in-circuit programming.  So this area can
+only be used for data that is never expected to change.  In the Gracious
+Host that is an eight-byte hardware identifier (ASCII ``MSK 014'' followed
+by byte 0x01) at symbol HARDWARE\_ID, address 0xA800; followed by a table of
+divisors at symbol NOTE\_TBL, address 0xA808.  The divisors are intended to
+be used with output compare modules to provide musical-note frequencies. 
+The firmware Makefile calls a Perl script to generate the file notetbl.inc,
+which is imported to firmware.s by an include directive.
+
+Later bytes of the last page, past the end of the note table, include a
+human-readable copyright and version control ID; but be aware that if you
+read these bytes out on a real-life module, they will represent what was
+programmed into the chip the last time it underwent ICSP.  Firmware loaded
+later by USB could have rewritten other parts of the program memory, so
+might not be the same version identified by the notice on the last page.
+
+\section{Power-on reset}
+
+At reset the microcontroller starts executing code at symbol \_\_reset,
+which begins by initializing the stack and the TBLPAG register.  If
+FILL\_RAM\_DEAD is selected, it will fill all the general-purpose RAM with
+the value 0xDEAD.  Then it opens a TRY/TRIED block with a handler that
+points at a \insn{reset} instruction, just to catch stray THROWs executed by
+other code, and calls STANDARD\_IO\_CONFIG (defined later this same file) to
+set up most of the on-chip peripherals.
+
+Next, the reset handler sets up PPS mappings for the SPI peripheral, and
+calls CALIBRATION\_TO\_RAM from calibration.s to extract the curren DAC and
+ADC calibration values.
+
+Optionally, if requested by configuration symbols, it branches at this point
+to RUN\_TESTS for tests from tests.s, or to \_USB\_MASS\_ENTRY to attempt
+reading a simulated filesystem image.  Normal production firmware will
+instead fall through into the non-USB behaviour.
+
+\section{Non-USB behaviour}
+
+This section of firmware.s contains the top-level loop that manages the
+module's functions when there is no USB device inserted.  Before the loop it
+calls USB\_INIT to set up the USB driver for detecting when a device is
+inserted, sets up the PPS mapping to send output compare units 1 and 2 to
+the left and right digital jacks, and does a couple of other small
+initializations like setting the LED colour to red.
+
+This code uses W8 for the current state of the envelope, encoded on a scale
+where each count of the register value corresponds to $1/(12\times 256)$ of
+a volt and 0x2400 is 0V.  That is the scale (MIDI note number in high byte,
+fraction in low byte) used by the calibration API.
+
+The non-USB behaviour (as described in the UBM) is a baby synthesizer voice:
+V/oct pitch CV in on the left, gate CV in on the right, and quantized pitch,
+envelope, and quantized and unquantized oscillator outputs.  While managing
+these functions, the loop is also constantly looking for a USB device to be
+inserted.  When one is, it branches off to the general USB driver to handle
+the device.
+
+The main loop starts by idling the microcontroller to wait for an interrupt,
+which also refreshes the WDT.  It checks whether the USB driver has detected
+a device attach, breaking out of the loop if so.  If the module booted up
+with a device already attached, that fact will be detected as a device
+attach on the first run through the loop.  Then if the loop did not break
+for a device attach, it checks whether input 2 is high (gate CV high).
+
+If the gate is low:  it turns off the LEDs and the unquantized oscillator
+output, then conditionally on whether a 618\,$\mu$s tick has occurred (from
+the ADC subsystem, used here for envelope timing) it updates the envelope
+value -- release phase, ready for a new attack, with the envelope voltage
+heading for zero.  After an envelope update it branches to
+tune\_oscillators, the shared code for setting the oscillator frequencies.
+
+If the gate is high: it turns on both LEDs, then similarly checks for a
+618\,$\mu$s tick.  If there has been one since last update, it updates the
+envelope, which is a little more complicated because it could be in the
+attack, decay, or sustain phase.  Once the new envelope value is in W8, it
+falls through to tune\_oscillators.
+
+From the tune\_oscillators label, the code calls ADC1\_TO\_NOTENUM from
+calibration.s to get the input voltage from the left channel, and then
+CALC\_OSC\_TUNING (later in this same file, global because it may be useful
+elsewhere) to find the output compate period value for the unquantized input
+note using interpolation between values from NOTE\_TBL.  This is written into
+output compare unit 1 conditionally on the gate input being high.
+
+Then the note value, which is in W7, gets rounded to the nearest semitone by
+adding 0x80 and zeroing the low byte.  That quantized value is sent to the
+left DAC channel and looked up in NOTE\_TBL; no interpolation needed because
+it is an exactly tuned note.  The resulting quantized period value is sent
+to output compare unit 2, unconditionally.
+
+Finally, the loop sends the current envelope value to DAC~2, and loops back
+to wait for another interrupt.
+
+The non-USB loop breaks out to non\_usb\_done when the USB driver tells it a
+device has attached.  At that point it changes the LEDs to solid green,
+turns off the output compare oscillators, sets up a TRY block with
+catch\_usb\_session as the handler, and then calls USB\_HANDLE\_SESSION,
+which in the ordinary course should do all the handling of enumerating and
+configuring the device, choosing a driver, and running the device driver
+until the device is removed.
+
+In case of an exception thrown and not caught during the driver execution:
+catch\_usb\_session sets up the LEDs to bring rapidly back and forth in
+red, using calls to the LED blinker driver.  It waits for the USB driver to
+report device detach, then falls through into the normal-case code run when
+the USB driver returns without throwing.
+
+Finally, there is a little bit of cleanup:  the top-level code calls
+USB\_DONE and LEDBLINK\_DONE to clean up after the USB and LED blinker
+subsystems, particularly by turning off relevant interrupts.  These calls
+are harmless if the relevant drivers were in fact already shut down.  Then
+it loops back up to the initialization before the main non-USB behaviour
+loop.
+
+CALC\_OSC\_TUNING is declared global in case it may be useful elsewhere.  It
+calculates a period value to tune an output compare for a MIDI note, with
+interpolation for fractional note numbers.  The input note number (high byte
+is MIDI note, low byte is fraction) is expected in W0.  It copies that value
+to W7, extracts the entries on either side of the fractional note from the
+NOTE\_TBL structure, and then interpolates between them, using a tricky
+\insn{mov.b}/\insn{swap} combination to divide the 24-bit intermediate value
+by 256 in only two instructions.  The address of NOTE\_TBL is left in W6 as
+a side effect.
+
+\section{Basic I/O}
+
+This file provides a few basic subroutines for I/O that it needs itself and
+might be needed elswhere.  UNLOCK\_PPS does the necessary unlocking sequence
+to allow changes to the PPS mapping registers; LOCK\_PPS, similarly, locks
+them up again.  Note that there is no automatic handling of nesting for
+these operations.  They just set the current state of the registers to
+locked or unlocked, regardless of whether it duplicates the previous state,
+and they trash W0, W3, and W4.
+
+STANDARD\_IO\_CONFIG sets most of the on-chip peripherals to sane default
+values.  It clears the soft interrupt flags (discussed below); sets the data
+direction for the GPIO pins; and configures the interrupt priorities.  It
+sets up Timers~1, 2, and~3 to their standard configurations, which are
+intended to support LED blinking (Timers~1 and~2) and the ADC conversion
+schedule (Timer~3).  It turns off Timers~4 and~5.
+
+It sets up all the output
+compare units to edge-aligned PWM mode, driven by the Timer~3 prescaler, but
+with modulation values that will actually keep their outputs low all the
+time.  It sets up the ADC subsystem to its standard configuration, scanning
+the two analog input jacks and the USB bus voltage, one conversion per
+Timer~3 reset, and one interrupt after each completed cycle of three
+conversions (1.618\,kHz interrupt frequency).
+
+Then it sets the comparators to look at the analog input jacks, with a
+reference voltage equivalent to $+$1.62V at the jacks, and interrupts enabled
+on rising edges through that voltage.  Note that in hardware testing, it was
+apparent that interrupts are also sometimes generated on falling edges; this
+is not a published erratum but may be related to one, and we work around it
+in the ISR, which is in calibration.s.
+
+Finally, STANDARD\_IO\_CONFIG sets up the SPI peripheral for talking to the
+SRAM and DAC, and clears the soft interrupt flags a second time to deal
+with any spurious interrupts that might have come in while the peripherals
+were being reconfigured.
+
+Two more global I/O routines set up PPS mappings used in firmware.s and
+possibly of use elsewhere:  PPS\_MAP\_OC\_DOUT sets output compare units~1
+and~2 to the two digital output jacks, and PPS\_MAP\_GPIO\_DOUT sets the
+pins for these outputs back to plain GPIO mode.  Each of these routines
+makes further calls to unlock, and then lock, the mapping registers around
+its writes to the registers.
+
+\section{A/D conversion and USB short detect}
+
+The A/D conversion ISR is to some extent a safety feature, so it is expected
+to be active pretty much all the time the module is powered up -- possibly
+not during the special operations of calibration and firmware reloading.  It
+extracts voltage measuerments from the ADC hardware buffer and writes them
+to global variables.
+
+Global variables defined here are SOFT\_INT\_FLAGS, INPUT\_ADC1, INPUT\_ADC2,
+and USB\_VBUS\_ADC, each one word long.  The other three simply represent
+raw ADC readings (10 bits each), updated by the ISR at 618\,$\mu$s
+intervals, but SOFT\_INT\_FLAGS is used by several different subsystems that
+need to wait for interrupts handled by specific ISRs; the ISR is expected to
+set an appropriate bit in the variable, and then the foreground code can
+check for that bit after coming out of idle to recognize when the desired
+interrupt (as opposed to some other interrupt) has actually occurred. 
+Constant values for bit numbers within this variable are defined by
+symbols with names starting ``SI\_'' in global.inc.
+
+As well as writing the current ADC readings to variables, the ADC ISR checks
+whether the one for USB voltage is too low (indicating that a short circuit
+or other problem has caused the polyfuse to trip) and sets the soft
+interrupt flag SI\_VBUS\_TRIP, if the voltage is low and has been low
+on more than 162 consecutive ADC interrupts, corresponding to 100\,ms.
+
+Before returning, the ISR sets (unconditionally) the soft interrupt flags
+for ADC1 and ADC2; separate flags because there could be two different
+things in the foreground waiting for them, as for instance during
+multi-threaded calibration.
+
+The last thing in the firmware.s file is a subroutine called CHECK\_VBUS,
+which is the consumer of the SI\_VBUS\_TRIP flag.  The foreground ought to
+call this periodically when a USB device is attached, to shut down the
+module in the event of trouble with the USB power.  It checks for whether
+the ISR has set the flag, then if so, it shuts down the USB driver, PPS
+maps the output jacks to plain GPIO, sets the LEDs to blink in a unique
+red/green flicker pattern, and then waits, checking the bus voltage after
+every interrupt, for the voltage to remain good for 1618 consecutive ADC
+interrupts, corresponding to one second -- the pattern expected if the short
+circuit is resolved and the polyfuse cools down.  Then it resets the module.
+
+In practice, a power disruption serious enough to trip the polyfuse is
+likely to also disrupt the microcontroller enough that it will be unable to
+continue executing instructions until a power cycle, so the semi-graceful
+reset contemplated by CHECK\_VBUS is mostly theoretical.  But this code
+seems to give it the best chance of recovering under software control.  It
+has to be called in the foreground (instead of the ISR just branching
+directly into the recovery loop) because logic like the LED blinking also
+uses interrupts and trying to keep all that running well without returning
+from the ADC interrupt would be inconveniently complicated.
+
+\section{Global include file}
+
+Every .s file includes global.inc, which contains standardized definitions
+used everywhere.  This file contains nested includes of Microchip's
+p24Fxxxx.inc file, which defines things like register names, and config.inc,
+which defines build-time options.  The build-time options are described in the
+``Build environment and tools'' chapter of this manual.
+
+These things are defined in global.inc:
+\begin{itemize}
+  \item the \insn{in\_common} macro for defining file-local static memory
+    assignments in the common data area, with its support symbols;
+  \item data structure sizes for the USB low-level support;
+  \item BUFFER\_SAFETY\_MARGIN, the minimum number of extra bytes added to
+    buffers to mitigate overruns by the USB hardware;
+  \item STACK\_RESERVATION, the minimum amount of stack space that the mass
+    storage buffer allocator will leave unconsumed;
+  \item symbols starting SI\_ (``soft interrupt'') representing bit numbers
+    in the SOFT\_INT\_FLAGS variable;
+  \item symbols starting UF\_ (``USB flag'') representing bit numbers, and
+    starting UFM\_ (``USB flag mask'') representing masks ($2^n$), for bits
+    in the USB\_FLAGS variable;
+  \item symbols starting EPF\_ (``endpoint flag'') representing bit numbers,
+    and starting EPFM\_ (``endpoint flag mask'') representing masks, for
+    bits in endpoint flags fields;
+  \item symbols starting IRPF\_ (``I/O request packet flag'') representing bit
+    numbers, and starting IRPFM\_ (``I/O request packet flag mask'')
+    representing masks, for bits in IRP flags fields;
+  \item symbols starting ERR\_ representing error codes used in IRP errors
+    fields; and
+  \item symbols starting PID\_ (``packet ID'') representing codes returned
+    by the hardware to identify types of USB packets.
+\end{itemize}

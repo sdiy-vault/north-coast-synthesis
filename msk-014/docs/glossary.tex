@@ -1,0 +1,483 @@
+% $Id: glossary.tex 9823 2022-02-09 01:07:30Z mskala $
+
+%
+% Glossary for MSK 014 programmer's manual
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Glossary}
+
+\begin{description}
+
+\item[absolute section] to the disappointment of tsundere fans, this is a
+reserved section in object code files used for storing symbols whose values
+are just unrelocatable numbers and not offsets into memory sections that the
+linker should relocate.  The\ .struct assembler directive is documented
+(sketchily) as being for defining symbols in the absolute section that can
+then be used as offsets into data structures; but it either was broken by
+Microchip when they did their chop job on the GNU assembler, or it may have
+never even worked in the original GNU assembler to begin with.
+
+\item[ADC] Analog to Digital Converter, a device that converts voltage
+measurements to digital numbers.  The Gracious Host uses a 10-bit ADC that
+is built into the microcontroller.
+
+\item[API] Application Programming Interface, the interface through which
+application software can make use of a library or driver.
+
+\item[BCD] Binary Coded Decimal:  decimal translated to binary by
+translating each digit to four bits independently, rather than using the
+integer value of the entire number at once.  Basically the same
+thing you would get by pretending the decimal number is actually hexadecimal.
+
+\item[big endian] handling the most significant bytes of a multi-byte number
+first, or storing them in smaller-indexed addresses.  Some computers, and
+almost all Internet-associated protocols, prefer big endian, hence the
+alternate name \emph{network byte order}.  See also \emph{little endian}. 
+The USB Mass Storage specification, in its most popular variation, requires
+both big endian and little endian numbers in different parts of the same data
+structures.
+
+\item[bit bang] serial communication by means of software on the CPU
+controlling the timing of individual bits on one or more GPIO pins, instead
+of using a specialized peripheral that implements the serial protocol in
+hardware.
+
+\item[boot keyboard] the USB Human Interface Device Specification's name for
+the ordinary kind of typing or QWERTY keyboard typically used with PCs, and
+the protocol for talking to it; called \emph{boot} because of their idea
+that this protocol would only be used during the boot sequence and then
+would be replaced by something more complicated once the full operating
+system finished loading.
+
+\item[boot mouse] much like \emph{boot keyboard}, the basic low-feature and
+low-complexity USB mouse protocol.
+
+\item[CABA] Cluster And Block Address, a data structure specific to the
+Gracious Host FAT filesystem driver, used for referring to blocks within
+chains.
+
+\item[CBD] Technically this is the abbreviation for cannabidiol, a drug
+found in cannabis and purported to have health benefits while producing
+little or none of the ``high'' produced by tetrahydrocannabinol (THC); but
+in the context of USB Mass Storage, more likely a typo for CDB.
+
+\item[CBW] Command Block Wrapper.  A 31-byte structure sent from host to
+device to initiate a USB Mass Storage bulk-only SCSI command.  Contains an
+unaligned 16-byte field for the SCSI CDB.
+
+\item[CDB] Command Data Block.  The header of a SCSI command, likely
+to be followed by a data transfer in one direction or the other.  Tends to
+contain big-endian fields with 16-bit alignment.  SCSI commands are often
+named with the length of the CDB, with more than one length and CDB layout
+possible for what would otherwise be the same command, such as READ (10) or
+READ (12).
+
+\item[CSW] Command Status Wrapper.  A 13-byte structure sent from device to
+host after completion of a USB Mass Storage bulk-only SCSI command to report
+success or failure of the command and maintain synchronization.
+
+\item[cluster] in a FAT filesystem, the unit of allocation.  A cluster may
+be from 1 to 64 \emph{FAT blocks}; standard FAT filesystems have the
+limitations that the cluster size must be a power of 2 and no more than 64K
+bytes total (no more than 16K in many implementations), but the Gracious
+Host can actually read some filesystems that break those rules.
+
+\item[common data] a toolchain feature by which copies of a symbol can be
+defined in more than one assembly-language file and will then be merged to
+all appear at the same address; not perfectly supported by the
+PIC24 toolchain, but we use it to implement a substitute for the even more
+broken \emph{data overlay} feature.
+
+\item[CN] Change Notification, a microcontroller feature that allows a GPIO
+pin to serve as an interrupt request.
+
+\item[CPU] Central Processing Unit.
+
+\item[CRC] Cyclic Redundancy Check, a kind of checksum based on finite field
+polynomial division; our microcontroller has a dedicated hardware module for
+computing these efficiently.
+
+\item[CRC32] One of:  the PIC24F peripheral for calculating CRCs; a specific
+very popular 32-bit CRC algorithm used by the Gracious Host for checking the
+integrity of firmware update images and in the PRNG code; or just any 32-bit
+CRC.
+
+\item[CRC5] a specific 5-bit CRC algorithm used in USB for low-level bit
+error detection and affected by a silicon erratum in the PIC24F USB
+hardware.
+
+\item[CTMU] Charge Time Measurement Unit, a microcontroller feature for
+implementing capacitive touch controls, not usable in the Gracious Host
+hardware.
+
+\item[CV] Control Voltage, as in a Eurorack synthesizer patch.
+
+\item[DAC] Digital to Analog Converter; the Gracious Host contains a
+separate 12-bit two-output DAC chip connected to the microcontroller
+by the SPI port.
+
+\item[data overlay] a toolchain feature by which multiple software modules
+that will not run at the same time can reuse the same addresses for their
+RAM data, saving overall memory consumption; desired by the Gracious Host
+firmware but unusable in the PIC24F toolchain because of linker bugs.
+
+\item[descriptor] in USB, a data structure that the device returns to the
+host during a configuration phase after enumeration.  Devices usually have
+many descriptors, containing information about the device's manufacturer and
+model number, which USB standards it supports, its capabilities and
+limitations (such as number of buttons or ports), and so on.
+
+\item[dirent] Directory Entry.  A 32-byte record in a FAT filesystem's
+directory (root directory or subdirectory).  A basic dirent stores the
+8.3-format short filename, file size, starting cluster number, timestamp,
+and so on.  Files with longer names have extra dirents each
+storing a chunk of the long name.
+
+\item[drive block] my name for a block of data in the native size of a USB
+Mass Storage device as reported by the SCSI READ CAPACITY (10) transaction,
+used to organize subsequent data transfers.  In practice this is
+expected to always be 512 bytes, but the Gracious Host can also handle a few
+larger sizes.
+
+\item[DMA] Direct Memory Access, the act of a peripheral reading or writing
+general RAM directly instead of going through the CPU and special registers
+or memory mapping, often mediated by a \emph{DMA controller}.  The PIC24F
+USB module uses DMA with a built-in dedicated controller.
+
+\item[DS] Data Sheet, specifically the \emph{PIC24FJ64GB004 Family Data Sheet}
+published by Microchip.
+
+\item[ECPLL] External Clock Phase Locked Loop, the operating mode for the
+microcontroller clock used in the Gracious Host.  An external crystal
+oscillator module supplies a digital reference at an accurate frequency that
+gets multiplied and then divided to generate the different clock frequencies
+needed internally by the microcontroller.
+
+\item[enumeration] something that is supposed to happen when a USB device is
+attached to a USB host: the host assigns the device an ID number, so
+that different devices on the same bus can be addressed separately.  The
+Gracious Host tells every device to be number 1, because there can only
+be one device attached at a time anyway.
+
+\item[EP] ``endpoint''; a data structure used by the USB driver to represent
+the local end of a ``pipe'' between software on the host and a ``function''
+on the device.
+
+\item[Fast RC] one of the built-in oscillators on the microcontroller,
+capable of running the chip at full speed without needing any external
+components, but not accurate enough for USB operation unless possibly it may
+be \emph{trimmed} for the variations of individual chips by a fiddly and
+poorly-documented procedure.
+
+\item[FAT] File Allocation Table; see \emph{FAT filesystem} and \emph{FAT
+per se}.
+
+\item[FAT filesystem] a data structure for storing files and directories on
+a disk or a disk-like medium, made popular by MS-DOS, subsequently used by
+Windows, and popular for USB Mass Storage devices even when they are read
+and written by non-Microsoft systems.  The Gracious Host includes a
+low-featured FAT filesystem driver for reading firmware update images from
+USB flash drives.  FAT filesystems are described as FAT12, FAT16, or FAT32
+depending on the bit width of the entries in the \emph{FAT per se}.
+
+\item[FAT per se] the part of a \emph{FAT filesystem} that is literally
+named the ``file allocation table.'' It is an array of entries that are 12,
+16, or 32 bits long, recording for each cluster in the filesystem whether
+that cluster is in use, bad, or free, and if in use, which other cluster is
+next in the chain.
+
+\item[FAT block] my name for one of the blocks used to organize a FAT
+filesystem, officially (but confusingly) called a \emph{logical sector} and
+not necessarily matching the \emph{drive block} size.
+
+\item[FIFO] First In First Out, describing a type of buffer commonly used
+between the CPU and a peripheral, in either direction, so that they will
+less often need to wait for each other.
+
+\item[firmware] software that is built into hardware, effectively becoming
+part of it.
+
+\item[foreground] the code running on the microcontroller under ordinary
+circumstances, when it is \emph{not} processing an interrupt.
+
+\item[FRM] Family Reference Manual, specifically the \emph{PIC24F Family
+Reference Manual} published (a chapter at a time, not as a single document)
+by Microchip.
+
+\item[GPIO] General Purpose Input/Output, the common digital interface pins
+on many microcontrollers.  GPIO pins can usually be configured one at a time
+as input or output, and often have some extra features like being
+configurable for open-drain or tri-state output modes, or to generate
+interrupts in input mode.
+
+\item[GPL] the General Public License, a set of copyright licensing terms
+applicable to the Gracious Host hardware and firmware, as well as to the GNU
+toolchain.  It means you're allowed to distribute and make modifications to
+the things in question, but you're not allowed to prevent others from doing
+the same.
+
+\item[hardware breakpoint] in ICD, breakpoints mediated by undocumented
+hardware features.  They are efficient and do not wear out the flash, but
+you can only have up to four code and four data hardware breakpoints at a
+time, and if you use more than three, you lose some single-stepping
+capability and the Microchip tools will encourage you to switch to software
+breakpoints.
+
+\item[Harvard architecture, modified] a computer architecture that puts code
+and data in separate address spaces which may have significantly different
+rules, common in microcontrollers too small to run operating systems; used
+in PIC24.
+
+\item[HID] Human Interface Device, the USB term for a general category of
+devices used by humans to directly communicate with computers.  Includes
+mice, typing keyboards, and some things like joysticks, arcade buttons, and
+VR controllers, but notably does \emph{not} usually include music keyboards
+(which tend to be USB-MIDI instead) nor sex toys (which tend to have
+proprietary vendor-only protocols).  The USB HID standard includes
+simplified protocols for typing keyboards and mice, which are called the
+``boot'' protocols, and a much more complicated generic protocol intended to
+work with all types of HIDs including all of their unique features.
+
+\item[ICD] In-Circuit Debugging, with a special hardware device plugged into
+reserved pins on the microcontroller to allow stepping through the code,
+setting breakpoints, and so on.
+
+\item[ICSP] In-Circuit Serial Programming, loading the microcontroller with
+its firmware through basically the same interface as ICD.
+
+\item[I$^2$C] Inter-Integrated Circuit (bus), a serial bus similar in nature
+and typical application to SPI, and supported by the microcontroller, but
+not actually used in the Gracious Host.
+
+\item[IRP] I/O Request Packet, the USB standards' term for a data structure
+passed into the driver when requesting data to be transferred over the bus
+in either direction.
+
+\item[ISR] Interrupt Service Routine, the subroutine that handles an
+interrupt.  In PIC24 these need to return with the special \insn{retfie}
+instruction instead of an ordinary \insn{return}.
+
+\item[keep-alive] a pulse sent from the host to the device at 1\,ms
+intervals on a low-speed USB connection.  The device disconnects if it
+misses three consecutive keep-alives.
+
+\item[LDO] Low Drop Out, describing a voltage regulator that can operate
+with significantly less than the minimum 3V difference between input and
+output that is required by traditional 78xx-style regulators.
+
+\item[level-triggered] Microchip's description of the USB attach and detach
+interrupts, which will keep reoccurring until fully disabled as long as the
+relevant state persists, even if the individual interrupts are acknowledged
+in the way required by other PIC24F interrupts.
+
+\item[linker script]  A file that gives the linker instructions on how to
+process fragments of code and data into the memory image of the complete
+program.  The Gracious Host uses a customized linker script to put knowledge
+about drivers into the higher-level code that uses it; but even the default
+PIC24 linker script does a lot of complicated processing to support features
+like automatic creation of interrupt vector tables, and initialization of
+high-level language variables.
+
+\item[little endian] handling the least significant bytes of a multi-byte
+number first, or storing them in smaller-indexed addresses.  PIC24
+microcontrollers have a preference for little endian organization.  See also
+\emph{big endian}.
+
+\item[LSB] Least Significant Bit; the bit with least numerical value,
+normally written on the right.
+
+\item[microcontroller] in this manual, specifically the Microchip
+PIC24FJ64GB002-I/SP microcontroller.
+
+\item[Microchip Corporation] vendors of PIC24 chips, some other chips used
+in the Gracious Host, and hardware and software development tools. 
+Distributors of a version of the GNU multi-platform toolchain modified to
+work with PIC24, which means they have certain obligations under the GPL. 
+See also \emph{Sirius Cybernetics Corporation}.
+
+\item[MIDI] Musical Instruments Digital Interface.
+
+\item[MSB] Most Significant Bit; the one with greatest numerical value,
+normally written on the left.
+
+\item[mutatis mutandis] Medieval Latin for ``with the necessary changes.''
+
+\item[OTG] USB On The Go, a specification explaining how a USB host or
+device can be confused about which one of those it is.
+
+\item[page] in the context of the PIC24F flash program memory, an aligned
+block of 512 words or 1536 bytes; this is the unit of flash erase
+operations.
+
+\item[PIC24] Microchip Corporation's 16/24-bit microcontroller architecture.
+
+\item[PIC24F] a specific family of microcontrollers, subset of the broader
+PIC24 architecture.
+
+\item[PID] Packet Identifier.  A four-bit code attached to USB packets which
+specifies their role in the protocol.
+
+\item[PMP] Parallel Master Port, a feature of some larger PIC24F
+microcontrollers that theoretically exists in the silicon of ours too, but
+cannot actually be used because of packaging limitations, let alone the
+conflicting Gracious Host board design.
+
+\item[polyfuse] a component in the Gracious Host hardware, technically a
+special temperature-sensitive resistor, that functions like a fuse to
+temporarily shut off power to the connected USB device if the device tries
+to draw a dangerously large amount of power.
+
+\item[PPQN] Pulse Per Quarter Note.  Describes the ratio between synthesizer
+tempo clock signals and musical notes.  MIDI uses a 24~PPQN clock, meaning
+that there are 24 clock pulses for each quarter note.  At a tempo of 120
+BPM, the 24~PPQN clock has $120\times 24 = 2880$ pulses per minute, or 48
+pulses per second.
+
+\item[PPS] Peripheral Pin Select, a microcontroller feature allowing the
+mapping between on-chip digital peripherals and pins of the 28-pin SPDIP
+package to be changed under software control.
+
+\item[PRNG] Pseudo-Random Number Generator.  In the Gracious Host this is a
+firmware feature implemented in utils.s and used by the MIDI backend for
+random arpeggiation and by the USB mass storage driver to generate
+transaction-recognition tokens.  It makes use of the CRC32 module.
+
+\item[PSV] Program Space Visibility, a feature of the PIC24 architecture by
+which part of program memory can be made to appear in a read-only window of
+the data memory space.
+
+\item[row] in the context of the PIC24F flash program memory, an aligned
+block of 64 instruction words, equal to 192 bytes; there are 8 rows to
+each page, and some flash write operations write a whole row at a time. 
+Each set of Gracious Host calibration data uses, though it does not entirely
+fill, one row.
+
+\item[SCSI] Small Computer System Interface, originally a parallel bus used
+for connecting disk drives and other peripherals to computers; basically
+obsolete in its original form, but some more recent standards, including the
+common variant of USB Mass Storage supported by the Gracious Host, work by
+sending SCSI commands on top of some other protocol.  SCSI is \emph{big
+endian}.
+
+\item[SFR] Special Function Register(s); the hardware registers used for
+communication with the microcontroller's on-chip peripherals and for CPU
+control, mapped between addresses 0x0000 and 0x07FF in data memory.
+
+\item[skinny DIP] a Dual Inline Package (DIP) for a through-hole IC with
+0.300$''$ row spacing despite having 24 pins or more.  Traditional DIPs use
+0.300$''$ spacing only for packages with fewer than 24 pins and 0.600$''$ at
+higher pin counts.  The microcontroller in the Gracious Host comes in a
+28-pin skinny DIP.
+
+\item[soft timer] a timer implemented by having the CPU periodically update
+a variable in RAM, instead of by using a hardware counter that runs
+independently of the CPU.
+
+\item[software breakpoint] in ICD, breakpoints implemented by rewriting the
+program memory instead of using the hardware debugging features.  You can
+use an unlimited number of software breakpoints, but they are slower, and
+they cause significant wear on the flash memory.
+
+\item[SOF] Start Of Frame, a packet the host sends to the device at
+1\,ms intervals on a full-speed USB connection, much like the low-speed
+\emph{keep-alive}.  The PIC24F hardware can
+be set to generate an interrupt linked to the SOF.
+
+\item[SPDIP] Skinny Plastic Dual Inline Package; see \emph{skinny DIP}.
+
+\item[SPI] Serial Peripheral Interface, a serial bus used in
+the Gracious Host to control the SRAM and DAC chips.
+
+\item[SRAM] either Serial Random Access Memory or Static Random Access
+Memory, which are not the same thing but the 23LC1024 SRAM chip in the
+Gracious Host happens to be both.  This chip provides 128K bytes of memory
+accessible to the microcontroller via SPI transactions, and is used as
+a buffer for the incoming firmware image when updating firmware from USB
+mass storage.
+
+\item[star section] a section (in the assembly-language sense) with
+its name declared as just an asterisk.  Then the assembler will automatically
+give it a unique name, separating it from other sections and allowing
+the linker some flexibility in locating it.
+
+\item[tail call]  When a subroutine ends by branching to another subroutine. 
+The return from the second subroutine has the effect of returning to the
+caller of the first.  If the last instruction of the first subroutine before
+returning would have been a regular call to the second subroutine, then
+doing a tail call instead saves some time and space.
+
+\item[TDL] Targeted Device List, the Gracious Host-specific term for the
+part of the TPL executable data structure that recognizes entire devices
+based on the information in their device descriptors.
+
+\item[TIL] Targeted Interface List, the Gracious Host-specific term for the
+part of the TPL executable data structure that recognizes interface
+descriptors within a device, if no TDL entry has claimed the device first.
+
+\item[TLA] usually read as Three-Letter Acronym, though many including TLA
+itself are more properly called Three-Letter \emph{Abbreviations} because
+they are not pronounced as words.
+
+\item[toolchain] the sequence of software tools that turn source code into a
+loadable binary image.  For PIC24 assembly language programs like the
+Gracious Host firmware, the toolchain as such is basically just the
+assembler and linker, although side utilities for dealing with object and
+archive files are often counted as part of the broader toolchain entity.
+
+\item[TPL] Targeted Peripherals List, the list of USB devices with which a
+USB host is intended to work -- both a listing in the documentation and a
+data structure likely to exist in its driver software.
+
+\item[trap] basically an interrupt that happens when something really bad
+has occurred, like an unaligned memory access.  They cannot be ignored or
+masked, and normally lead to a CPU reset.
+
+\item[UART] Universal Asynchronous Receiver Transmitter, a serial interface
+traditionally used for connecting to things like modems and terminals.
+
+\item[UBM] the \emph{MSK~014 Gracious Host User/Build Manual}, companion to
+this volume.
+
+\item[USB] Universal Serial Bus.
+
+\item[VCO] Voltage Controlled Oscillator.  One of the basic modules in an
+analog synthesizer.  Eurorack VCOs in particular usually have their
+frequencies controlled by a voltage that shifts the frequency \emph{one volt
+per octave} (V/oct); VCOs in non-Eurorack systems may have different control
+voltage standards.  One of the main applications for the Gracious Host is in
+controlling a VCO, and a V/oct VCO is required for the calibration process.
+
+\item[von Neumann architecture] a computer architecture in which code and
+data are in the same address space, accessed in substantially the same way,
+typical of general-purpose computers and usually taken for granted by
+operating systems and programming language tools.
+
+\item[WDT] Watch Dog Timer, which resets the CPU if the firmware does not
+clear the timer occasionally; intended to break out of situations where the
+firmware has gone into an uncontrolled infinite loop.  There is also a
+\emph{deep-sleep WDT}, not used on the Gracious Host, which has a similar
+function in longer-lasting power-saving modes.
+
+\item[ZIF socket] Zero Insertion Force socket, a type of IC socket designed
+to withstand many cycles of inserting and removing ICs without damage to
+either party, such as in IC testing equipment or for the CPU chip on
+a desktop computer motherboard.
+
+\end{description}

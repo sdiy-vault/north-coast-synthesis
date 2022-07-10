@@ -1,0 +1,259 @@
+% $Id: panel-master.tex 9285 2021-07-27 20:53:39Z mskala $
+
+%
+% MSK 013 panel design (master)
+% Copyright (C) 2020  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={121.60mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{arrows.meta,calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (lrrh) at ($(o)+(114.18mm,3.00mm)$) {};
+  \coordinate (urrh) at ($(o)+(114.18mm,125.50mm)$) {};
+  \coordinate (j6) at ($(o)+(11.27mm,23.61mm)$) {};
+  \coordinate (j3) at ($(o)+(27.78mm,23.61mm)$) {};
+  \coordinate (j18) at ($(o)+(44.29mm,23.61mm)$) {};
+  \coordinate (j19) at ($(o)+(60.80mm,23.61mm)$) {};
+  \coordinate (j20) at ($(o)+(77.31mm,23.61mm)$) {};
+  \coordinate (j10) at ($(o)+(93.82mm,23.61mm)$) {};
+  \coordinate (j13) at ($(o)+(110.33mm,23.61mm)$) {};
+  \coordinate (j4) at ($(o)+(11.27mm,37.58mm)$) {};
+  \coordinate (j7) at ($(o)+(27.78mm,37.58mm)$) {};
+  \coordinate (j15) at ($(o)+(44.29mm,37.58mm)$) {};
+  \coordinate (j16) at ($(o)+(60.80mm,37.58mm)$) {};
+  \coordinate (j17) at ($(o)+(77.31mm,37.58mm)$) {};
+  \coordinate (j14) at ($(o)+(93.82mm,37.58mm)$) {};
+  \coordinate (j11) at ($(o)+(110.33mm,37.58mm)$) {};
+  \coordinate (j1) at ($(o)+(11.27mm,51.55mm)$) {};
+  \coordinate (j5) at ($(o)+(27.78mm,51.55mm)$) {};
+  \coordinate (j12) at ($(o)+(93.82mm,51.55mm)$) {};
+  \coordinate (j8) at ($(o)+(110.33mm,51.55mm)$) {};
+  \coordinate (j2) at ($(o)+(11.27mm,65.52mm)$) {};
+  \coordinate (j9) at ($(o)+(110.33mm,65.52mm)$) {};
+  \coordinate (r5) at ($(o)+(15.08mm,107.43mm)$) {};
+  \coordinate (r3) at ($(o)+(21.43mm,82.03mm)$) {};
+  \coordinate (r34) at ($(o)+(36.67mm,69.33mm)$) {};
+  \coordinate (r7) at ($(o)+(43.02mm,102.35mm)$) {};
+  \coordinate (r85) at ($(o)+(49.37mm,54.09mm)$) {};
+  \coordinate (r87) at ($(o)+(60.80mm,69.33mm)$) {};
+  \coordinate (r89) at ($(o)+(72.23mm,54.09mm)$) {};
+  \coordinate (r43) at ($(o)+(78.58mm,102.35mm)$) {};
+  \coordinate (r72) at ($(o)+(84.93mm,69.33mm)$) {};
+  \coordinate (r39) at ($(o)+(100.17mm,82.03mm)$) {};
+  \coordinate (r41) at ($(o)+(106.52mm,107.43mm)$) {};
+  \coordinate (s1) at ($(o)+(60.80mm,89.65mm)$) {};
+  \coordinate (llbh) at ($(o)+(6.44mm,14.97mm)$) {};
+  \coordinate (ulbh) at ($(o)+(6.44mm,113.53mm)$) {};
+  \coordinate (lrbh) at ($(o)+(115.16mm,14.97mm)$) {};
+  \coordinate (urbh) at ($(o)+(115.16mm,113.53mm)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (121.60mm,128.50mm);
+  % oscillator A group
+  \draw[very thick,black,rounded corners=3.0mm,fill=white]
+    ($(j6)+(-7.0mm,-11.0mm)$) -- ($(j6|-r5)+(-7.0mm,12.0mm)$)
+    -- ($(s1|-r5)+(-2.0mm,12.0mm)$) -- ($(s1)+(-2.0mm,-4.0mm)$)
+    -- ($(j5)+(7.0mm,0.0mm)$) -- ($(j3)+(7.0mm,-11.0mm)$) --cycle;
+  \draw[very thick,black,fill=blue!30!black]
+    ($(j4)+(-7.0mm,6.0mm)$)
+    -- ($(j7)+(7.0mm,6.0mm)$) [rounded corners=3.0mm]
+    -- ($(j3)+(7.0mm,-11.0mm)$) 
+    -- ($(j6)+(-7.0mm,-11.0mm)$) [rounded corners=0] --cycle;
+  \node at ($(r5)+(0.0mm,-13.0mm)$) {coarse};
+  \node at ($(r7)+(0.0mm,13.0mm)$) {fine};
+  \node at ($(j2)+(0.0mm,-6.5mm)$) {FM};
+  \node at ($(j1)+(0.0mm,-6.0mm)$) {V/oct};
+  \node at ($(j5)+(0.0mm,-6.0mm)$) {PWM};
+  \node[white] at ($(j4)+(0.0mm,-6.5mm)$) {\textbf{SQR}};
+  \node[white] at ($(j7)+(0.0mm,-6.5mm)$) {\textbf{PULS}};
+  \node[white] at ($(j6)+(2.5mm,-6.5mm)$) {\textbf{SAW}};
+  \node[white] at ($(j3)+(0.0mm,-6.5mm)$) {\textbf{TRI}};
+  \draw[very thick,black!60!white,->,>=Stealth]
+    (r3) to [bend right=20] ($(j2)+(1.0mm,5.0mm)$);
+  \draw[very thick,black!60!white,->,>=Stealth]
+    (r34) to [bend right=20] ($(j5)+(1.0mm,5.0mm)$);
+  % oscillator B group
+  \draw[very thick,black,rounded corners=3.0mm,fill=white]
+    ($(j10)+(-7.0mm,-11.0mm)$) -- ($(j12)+(-7.0mm,0.0mm)$)
+    -- ($(s1)+(2.0mm,-4.0mm)$) -- ($(s1|-r41)+(2.0mm,12.0mm)$)
+    -- ($(j13|-r41)+(7.0mm,12.0mm)$) -- ($(j13)+(7.0mm,-11.0mm)$) --cycle;
+  \draw[very thick,black,fill=blue!30!black]
+    ($(j14)+(-7.0mm,6.0mm)$)
+    -- ($(j11)+(7.0mm,6.0mm)$) [rounded corners=3.0mm]
+    -- ($(j13)+(7.0mm,-11.0mm)$) 
+    -- ($(j10)+(-7.0mm,-11.0mm)$) [rounded corners=0] --cycle;
+  \node at ($(r41)+(0.0mm,-13.0mm)$) {coarse};
+  \node at ($(r43)+(0.0mm,13.0mm)$) {fine};
+  \node at ($(j9)+(0.0mm,-6.5mm)$) {FM};
+  \node at ($(j8)+(0.0mm,-6.0mm)$) {V/oct};
+  \node at ($(j12)+(0.0mm,-6.0mm)$) {PWM};
+  \node[white] at ($(j11)+(0.0mm,-6.5mm)$) {\textbf{SQR}};
+  \node[white] at ($(j14)+(0.0mm,-6.5mm)$) {\textbf{PULS}};
+  \node[white] at ($(j13)+(-2.5mm,-6.5mm)$) {\textbf{SAW}};
+  \node[white] at ($(j10)+(0.0mm,-6.5mm)$) {\textbf{TRI}};
+  \draw[very thick,black!60!white,->,>=Stealth]
+    (r39) to [bend left=20] ($(j9)+(-1.0mm,5.0mm)$);
+  \draw[very thick,black!60!white,->,>=Stealth]
+    (r72) to [bend left=20] ($(j12)+(-1.0mm,5.0mm)$);
+  % shaper group
+  \draw[very thick,black,rounded corners=3.0mm,fill=white]
+    ($(j18)+(-6.0mm,-11.0mm)$) -- ($(j15|-j5)+(-6.0mm,-1.0mm)$)
+    -- ($(s1)+(-4.0mm,-12.0mm)$) -- ($(s1)+(4.0mm,-12.0mm)$)
+    -- ($(j17|-j12)+(6.0mm,-1.0mm)$) -- ($(j20)+(6.0mm,-11.0mm)$) --cycle;
+  \draw[very thick,black,fill=blue!30!black]
+    ($(j18)+(-6.0mm,6.0mm)$)
+    -- ($(j20)+(6.0mm,6.0mm)$) [rounded corners=3.0mm]
+    -- ($(j20)+(6.0mm,-11.0mm)$) 
+    -- ($(j18)+(-6.0mm,-11.0mm)$) [rounded corners=0] --cycle;
+  \node[white] at ($(j18)+(0.0mm,-6.5mm)$) {\textbf{sin}};
+  \node[white] at ($(j19)+(0.0mm,-6.5mm)$) {\textbf{both}};
+  \node[white] at ($(j20)+(0.0mm,-6.5mm)$) {\textbf{cos}};
+  % sync
+  \draw[very thick,black,fill=blue!15!black!30!white]
+    ($(s1)+(-17.0mm,9.0mm)$) -- ($(s1)+(8.5mm,9.0mm)$)
+    -- ($(s1)+(17.0mm,0.0mm)$) -- ($(s1)+(8.5mm,-9.0mm)$)
+    -- ($(s1)+(-17.0mm,-9.0mm)$) -- ($(s1)+(-8.5mm,0.0mm)$) --cycle;
+  \node at ($(s1)+(-7.0mm,6.0mm)$) {\small firm};
+  \node at ($(s1)+(-7.0mm,-6.0mm)$) {\small soft};
+  \node at ($(s1)+(11.0mm,0.0mm)$) {\small SYNC};
+  %
+  \draw[very thick,black!60!white,->,>=Stealth]
+    ($(j3)+(0.0mm,-3.0mm)$) to [bend left=7] ($(j3)!0.77!(j15)$);
+  \draw[very thick,black!60!white,->,>=Stealth]
+    ($(j10)+(0.0mm,-3.0mm)$) to [bend right=7] ($(j10)!0.77!(j17)$);
+  \draw[very thick,black!60!white,->,>=Stealth]
+    (r87) -- ($(r87)!0.84!(j16)$);
+  %
+  \node at ($(current page.north)+(0.0mm,-4.0mm)$)
+    {\large MSK 013 MIDDLE PATH VCO};
+  \node at ($(current page.south)+(0.0mm,6.0mm)$)
+    {\large NORTH COAST SYNTHESIS};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  \draw (lrrh) circle[radius=1.60mm];
+  \draw (urrh) circle[radius=1.60mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (llbh) circle[radius=1.60mm];
+  \draw (ulbh) circle[radius=1.60mm];
+  \draw (lrbh) circle[radius=1.60mm];
+  \draw (urbh) circle[radius=1.60mm];
+  % 20 jacks with M6 threads, 6.3mm holes
+  \foreach \n in {1,...,20} {
+    \draw (j\n) circle[radius=3.15mm];
+  }
+  % 11 pots, 7.30mm+2.20mm holes per manufacturer spec
+  \foreach \n in {3,5,7,39,34,41,43,72,85,87,89} {
+    \draw (r\n) circle[radius=3.65mm];
+    \draw ($(r\n)+(0,-6.0mm)$) circle[radius=1.10mm];
+  }
+  % one toggle switch, 6.35mm+2.38mm holes per manufacturer spec
+  \draw (s1) circle[radius=3.175mm];
+  \draw ($(s1)+(0,-6.10mm)$) circle[radius=1.19mm];
+  \fi
+%
+  % hole centres (for panel graphics)
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35mm];
+  \draw (ulrh) circle[radius=0.35mm];
+  \draw (lrrh) circle[radius=0.35mm];
+  \draw (urrh) circle[radius=0.35mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (llbh) circle[radius=0.35mm];
+  \draw (ulbh) circle[radius=0.35mm];
+  \draw (lrbh) circle[radius=0.35mm];
+  \draw (urbh) circle[radius=0.35mm];
+  % 20 jacks with M6 threads, 6.3mm holes
+  \foreach \n in {1,...,20} {
+    \draw (j\n) circle[radius=0.35mm];
+  }
+  % 11 pots, 7.30mm+2.20mm holes per manufacturer spec
+  \foreach \n in {3,5,7,34,39,41,43,72,85,87,89} {
+    \draw (r\n) circle[radius=0.35mm];
+    \draw ($(r\n)+(0,-6.0mm)$) circle[radius=0.35mm];
+  }
+  % one toggle switch, 6.35mm+2.38mm holes per manufacturer spec
+  \draw (s1) circle[radius=0.35mm];
+  \draw ($(s1)+(0,-6.10mm)$) circle[radius=0.35mm];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,llbh,lrbh,ulbh,urbh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {1,...,20} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(j\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (j\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (j\jackname) circle[radius=2mm];
+  }
+  % Davies 1900H clone knobs
+  \foreach \knobname in {r3,r34,r39,r72,r85,r87,r89} {
+    \path[draw=black,fill=black!30!white,
+      decorate,decoration={snake,amplitude=0.6}]
+      ($(\knobname)+(0,-0.85mm)$) circle[radius=6.05mm];
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(30:6mm)$);
+  }
+  % Davies 1510 clone knobs
+  \foreach \knobname in {r5,r7,r41,r43} {
+    \path[draw=black,shading=ball,
+      left color=black!20!white,right color=black!40!white]
+      (\knobname) circle[radius=9.5mm];
+    \draw ($(\knobname)+(125:9.5mm)$)--($(\knobname)+(265:9.5mm)$);
+    \draw ($(\knobname)+(85:9.5mm)$)--($(\knobname)+(305:9.5mm)$);
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(105:9.5mm)$);
+  }
+  % toggle switch
+  \path[draw=black,fill=black!20!white] (s1) circle[radius=6.1mm];
+  \path[draw=black,fill=black!15!white] (s1) circle[radius=3mm];
+  \path[draw=black,fill=black] (s1) circle[radius=2mm];
+  \path[draw=black,fill=black!15!white]
+    ($(s1)+(1.5mm,0)$)--($(s1)+(1.5mm,6mm)$)
+    arc[radius=1.5mm,start angle=0,end angle=180]
+    --($(s1)+(-1.5mm,0)$)
+    arc[radius=1.5mm,start angle=180,end angle=360];
+  \fi
+\end{tikzpicture}%
+\end{document}

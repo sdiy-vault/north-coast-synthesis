@@ -1,0 +1,726 @@
+% $Id: qwerty.tex 9718 2021-12-19 19:26:46Z mskala $
+
+%
+% Typing (QWERTY) keyboard interface
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\newcommand{\myFlFl}{\raisebox{0.2ex}{\musDoubleFlat}}
+\newcommand{\myFl}{\raisebox{0.2ex}{\musFlat}}
+\newcommand{\mySh}{\raisebox{0.4ex}{\musSharp}}
+\newcommand{\myShSh}{\raisebox{0.4ex}{\musDoubleSharp}}
+
+\chapter{Typing keyboard interface}
+
+The Gracious Host supports two kinds of USB keyboards:  musical keyboards
+with a USB MIDI interface as described in the previous chapter, and the
+other kind of keyboard that is commonly attached to a PC and used for
+typing.  The driver for typing keyboards, described in this chapter, allows
+them to be used for playing synthesizers -- with some limitations, but at a
+much lower cost than most full-featured MIDI keyboards.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{General comments on USB keyboards}
+
+The typing keyboard driver supports what the USB standards call the ``boot
+keyboard'' protocol.  In technical USB terms that means it will support a
+USB device with an interface descriptor of class 3, subclass 1, protocol 1. 
+This is the standard USB keyboard protocol used by the typing keyboards
+people commonly plug into personal computers.  It is called ``boot
+keyboard'' because the authors of the relevant standard apparently imagined
+that the simple protocol would only be used by the BIOS configuration menus
+of PCs, and most operating systems would instead use the ridiculously
+complicated full-generality ``HID report protocol'' instead; but in fact,
+most real-world implementations just use the boot keyboard protocol.
+
+Wiring switches together to form a keyboard becomes more complicated if it
+is desired to correctly detect when the user presses more than one key at
+the same time.  In musical keyboards this issue is called ``polyphony'';
+with typing keyboards, the same thing is called ``rollover.'' The USB boot
+keyboard protocol is only capable of reporting to the host at most six
+simultaneous keypresses (of regular typing keys; modifier keys like shift
+are handled separately and do not count toward this limit) because it sends
+six bytes of key information per report packet with each key consuming one
+byte.  So a USB keyboard plugged into the Gracious Host can play \emph{at
+most} six simultaneous MIDI notes in the ordinary way by pressing keys
+at once.
+
+However, reaching the limit requires keyboard hardware actually capable of
+six-key rollover.  Some keyboards, especially fancier ones marketed as
+``gaming'' keyboards, are able to do it; but cheaper generic USB keyboards
+cannot really do full six-key rollover.  The average USB typing keyboard
+that does not specifically advertise a rollover feature may give
+incorrect results (not detecting some keys, or spuriously detecting
+unpressed ``ghost'' keys) when multiple keys are pressed, usually depending
+in a complicated way on the specific key combination involved.  The
+Gracious Host only knows what the keyboard tells it, and cannot easily
+compensate for such behaviour.
+
+For the quantizer and arpeggiator features it's useful to play many notes at
+once; so to get around both keyboard rollover limits and the user's limited
+number of fingers, the Gracious Host typing-keyboard driver supports a
+\emph{sustain} feature using the Caps Lock key to lock keys in a pressed
+state without needing to hold them down.  See the section on that below.
+
+USB typing keyboards have a limit on how fast they can be polled, and that
+limits how responsive to keystrokes anything controlled by a USB typing
+keyboard can be.  The limit depends on the specific keyboard model (the
+keyboard decides how fast it will respond) but the default is usually
+10ms intervals, for 100 polls per second.  There can also be a further delay
+of a few milliseconds internal to the keyboard as the keyboard hardware
+scans the array of switches.  Human beings are not capable of perceiving this
+amount of so-called latency in keystroke response but many believe
+they can, and users who hold that belief might prefer to use a USB MIDI
+keyboard instead of a typing keyboard.  The USB MIDI protocol as implemented
+by the Gracious Host allows for sub-millisecond polling.
+
+The general layout of a USB typing keyboard is reasonably standardized, but
+there are many small details that vary from one to another.  The biggest
+distinction is between ``US-style'' keyboards, with a large L-shaped Enter
+key, and ``ISO-style'' keyboards with a narrower vertical Enter key and a
+few more small keys to accommodate the additional letters in non-English
+languages.  The precise details of those keys, which letters are shown on
+which keycaps, the locations of some punctuation marks like backslash, and
+so on, vary a lot.  Keyboards do not report the details of their layout to a
+USB host, so the host has to guess, maintain a database of specific keyboard
+models, or be configured for it out-of-band.
+
+The Gracious Host attempts to support all relevant keys that exist in most
+popular keyboard layouts used around the world, with reasonable guesses as
+to where they will be located; but be aware that it's possible your keyboard
+will not actually have all the keys shown in the diagrams in this manual, or
+that a few of them (especially around the edges of the main keyboard area)
+will not be located exactly where they are shown.
+
+The keys labelled ``GUI'' (and not implemented to do anything, in
+the current firmware) are called that here because that's what they are
+called in the relevant USB standard.  On most keyboards they are actually
+labelled with the logo of an operating system vendor, like Microsoft or
+Apple.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Piano-style keyboard layout}
+
+Figure~\ref{fig:qwerty-layouts} shows two layouts.  The upper one is the
+default layout active when a keyboard is first plugged into the Gracious
+Host and the Num Lock LED is off.  Note names and MIDI note numbers
+(assuming no octave shift) are as shown in the diagram.
+
+\begin{sidewaysfigure*}
+{\centering
+\begin{tikzpicture}[scale=0.234]
+  % first row
+  \foreach \xa/\xb/\tb in
+    {0/4/16,
+     8/12/1,12/16/2,16/20/3,20/24/4,
+     26/30/5,30/34/6,34/38/7,38/42/8,
+     44/48/9,48/52/10,52/56/11,56/60/12,
+     62/66/13,66/70/14,70/74/15} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,22)+(0.2,0.2)$) rectangle ($(\xb,26)+(-0.2,-0.2)$);
+    \node[red!50!black] at ($(\xa,26)+(2,-1)$)
+      {\tiny\textsf{Channel}};
+    \node[red!50!black] at ($(\xa,22)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % LEDs
+  \foreach \x/\t in {76/Num,80/Caps,84/Scroll} {
+    \draw (\x+0.6,24.75) rectangle (\x+2.1,25.25);
+    \node[anchor=west] at ($(\x,26)+(0,-2)$) {\tiny\textsf{\t}};
+    \node[anchor=west] at ($(\x,26)+(0,-3)$) {\tiny\textsf{Lock}};
+  }
+  % second row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/4/58/{A\mySh},8/12/61/{C\mySh},12/16/63/{D\mySh},
+     20/24/66/{F\mySh},24/28/68/{G\mySh},28/32/70/{A\mySh},
+     36/40/73/{C\mySh},40/44/75/{D\mySh},48/52/78/{F\mySh},
+     52/56/80/{G\mySh},56/60/82/{A\mySh}} {
+    \draw[rounded corners={1mm},fill=black]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,20)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,16)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % second row, skipped keys
+  \foreach \xa/\xb/\ta/\tb in
+    {4/8/60/{B\mySh},16/20/65/{E\mySh},32/36/72/{B\mySh},44/48/77/{E\mySh}} {
+    \draw[rounded corners={1mm},fill=black!20!white]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,20)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node at ($(\xa,16)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % second row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {62/66/Insert/{},66/70/Home/{},70/74/Page/Up,
+     76/80/{}/{},80/84/{/}/{},84/88/*/{},88/92/-/{}} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,20)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,20)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % third row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/6/59/B,6/10/60/C,10/14/62/D,14/18/64/E,
+     18/22/65/F,22/26/67/G,26/30/69/A,30/34/71/B,
+     34/38/72/C,38/42/74/D,42/46/76/E,46/50/77/F,
+     50/54/79/G} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,16)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,12+1.5)!0.5!(\xb,12+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % third row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {62/66/Delete/{},66/70/End/{},70/74/Page/Down} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,16)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,16)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keys that span third and fourth rows
+  \draw[rounded corners={1mm}]
+    ($(55,8)+(0.2,0.2)$) -- ($(55,12)+(0.2,0.2)$) --
+    ($(54,12)+(0.2,0.2)$) -- ($(54,16)+(0.2,-0.2)$) --
+    ($(60,16)+(-0.2,-0.2)$) -- ($(60,8)+(-0.2,0.2)$) --cycle;
+  \node[anchor=west] at ($(54,16)+(0,-1)$) {\tiny\textsf{Enter}};
+  \draw[rounded corners={1mm}]
+    ($(88,8)+(0.2,0.2)$) rectangle ($(92,16)+(-0.2,-0.2)$);
+  \node[anchor=west] at ($(88,16)+(0,-1)$) {\tiny\textsf{+}};
+  % fourth row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {11/15/49/{C\mySh},15/19/51/{D\mySh},
+     23/27/54/{F\mySh},27/31/56/{G\mySh},31/35/58/{A\mySh},
+     39/43/61/{C\mySh},43/47/63/{D\mySh},
+     51/55/66/{F\mySh}} {
+    \draw[rounded corners={1mm}, fill=black]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,12)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,8)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fourth row, skipped keys
+  \foreach \xa/\xb/\ta/\tb in
+    {7/11/48/{B\mySh},
+     19/23/53/{E\mySh},
+     35/39/60/{B\mySh},47/51/65/{E\mySh}} {
+    \draw[rounded corners={1mm},fill=black!20!white]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,12)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node at ($(\xa,8)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fourth row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/7/{}/{}} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,12)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,12)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % fifth row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {5/9/47/B,9/13/48/C,13/17/50/D,17/21/52/E,
+     21/25/53/F,25/29/55/G,29/33/57/A,33/37/59/B,
+     37/41/60/C,41/45/62/D,45/49/64/E} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,8)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,4+1.5)!0.5!(\xb,4+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fifth row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/5/{}/{},49/60/{}/{},
+     66/70/{$\uparrow$}/{}} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,8)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,8)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keys that span fifth and sixth rows
+  \draw[rounded corners={1mm}]
+    ($(88,0)+(0.2,0.2)$) rectangle ($(92,8)+(-0.2,-0.2)$);
+  \node[anchor=west] at ($(88,8)+(0,-1)$) {\tiny\textsf{Enter}};
+  % sixth row
+  \foreach \xa/\xb/\ta/\tb in
+    {0/6/{}/{},6/11/GUI/{},11/16/Alt/{},16/39/{}/{},
+     39/44/Alt/{},44/49/GUI/{},49/54/Menu/{},54/60/{}/{},
+     62/66/{$\leftarrow$}/{},66/70/{$\downarrow$}/{},70/74/{$\rightarrow$}/{},
+     76/84/{}/{},84/88/./Del} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,0)+(0.2,0.2)$) rectangle ($(\xb,4)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,4)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,4)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keypad numerals
+  \foreach \x/\y/\t in {76/4/14,80/4/28,84/4/42,76/8/56,80/8/70,
+    84/8/84,76/12/98,80/12/112,84/12/126} {
+    \draw[rounded corners={1mm}]
+      ($(\x,\y)+(0.2,0.2)$) rectangle ($(\x+4,\y+4)+(-0.2,-0.2)$);
+    \node[green!50!black] at ($(\x,\y)+(2,3)$)
+      {\tiny\textsf{Velocity}};
+    \node[green!50!black] at ($(\x,\y)+(2,1.5)$) {\large\bf\textsf{\t}};
+  }
+  % additional key labels
+  \node[blue!50!black] at (3.5,10) {\bf\textsf{sustain}};
+  \node[blue!50!black] at (2.5,6) {\small\bf\textsf{$-$bend}};
+  \node[blue!50!black] at (3,2) {\bf\textsf{$-$8ve}};
+  \node[blue!50!black] at (54,6) {\bf\textsf{$+$bend}};
+  \node[blue!50!black] at (57,2) {\bf\textsf{$+$8ve}};
+  \node[blue!50!black] at (78,18) {\scriptsize\bf\textsf{layout}};
+  \node[blue!50!black] at (80,2) {\small\bf\textsf{tap tempo}};
+\end{tikzpicture}\par
+\vspace*{60pt}
+\begin{tikzpicture}[scale=0.234]
+  % first row
+  \foreach \xa/\xb/\tb in
+    {0/4/16,
+     8/12/1,12/16/2,16/20/3,20/24/4,
+     26/30/5,30/34/6,34/38/7,38/42/8,
+     44/48/9,48/52/10,52/56/11,56/60/12,
+     62/66/13,66/70/14,70/74/15} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,22)+(0.2,0.2)$) rectangle ($(\xb,26)+(-0.2,-0.2)$);
+    \node[red!50!black] at ($(\xa,26)+(2,-1)$)
+      {\tiny\textsf{Channel}};
+    \node[red!50!black] at ($(\xa,22)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % LEDs
+  \foreach \x/\t in {80/Caps,84/Scroll} {
+    \draw (\x+0.6,24.75) rectangle (\x+2.1,25.25);
+    \node[anchor=west] at ($(\x,26)+(0,-2)$) {\tiny\textsf{\t}};
+    \node[anchor=west] at ($(\x,26)+(0,-3)$) {\tiny\textsf{Lock}};
+  }
+  \draw[fill=red] (76+0.6,24.75) rectangle (76+2.1,25.25);
+  \node[anchor=west] at ($(76,26)+(0,-2)$) {\tiny\textsf{Num}};
+  \node[anchor=west] at ($(76,26)+(0,-3)$) {\tiny\textsf{Lock}};
+  % second row, purple note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/4/67/{A\myFlFl},4/8/69/{B\myFlFl},48/52/91/{F\myShSh},
+     52/56/93/{G\myShSh},56/60/95/{A\myShSh}} {
+    \draw[rounded corners={1mm},fill=red!50!blue!80!black]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,20)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,16)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % second row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {8/12/71/{C\myFl},12/16/73/{D\myFl},16/20/75/{E\myFl},
+     36/40/85/{C\mySh},40/44/87/{D\mySh},44/48/89/{E\mySh}} {
+    \draw[rounded corners={1mm},fill=black]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,20)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,16)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % second row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {20/24/77/F,24/28/79/G,28/32/81/A,32/36/83/B} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,20)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,16)+(2,1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % second row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {62/66/Insert/{},66/70/Home/{},70/74/Page/Up,
+     76/80/{}/{},80/84/{/}/{},84/88/*/{},88/92/-/{}} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,16)+(0.2,0.2)$) rectangle ($(\xb,20)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,20)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,20)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % third row, purple note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/6/62/{E\myFlFl},50/54/86/{C\myShSh}} {
+    \draw[rounded corners={1mm},fill=red!50!blue!80!black]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,16)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,12+1.5)!0.5!(\xb,12+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % third row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {6/10/64/{F\myFl},10/14/66/{G\myFl},14/18/68/{A\myFl},18/22/70/{B\myFl},
+     34/38/78/{F\mySh},38/42/80/{G\mySh},42/46/82/{A\mySh},46/50/84/{B\mySh}} {
+    \draw[rounded corners={1mm},fill=black]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,16)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,12+1.5)!0.5!(\xb,12+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % third row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {22/26/72/C,26/30/74/D,30/34/76/E} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,16)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,12+1.5)!0.5!(\xb,12+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % third row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {62/66/Delete/{},66/70/End/{},70/74/Page/Down} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,16)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,16)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keys that span third and fourth rows
+  \draw[rounded corners={1mm}]
+    ($(55,8)+(0.2,0.2)$) -- ($(55,12)+(0.2,0.2)$) --
+    ($(54,12)+(0.2,0.2)$) -- ($(54,16)+(0.2,-0.2)$) --
+    ($(60,16)+(-0.2,-0.2)$) -- ($(60,8)+(-0.2,0.2)$) --cycle;
+  \node[anchor=west] at ($(54,16)+(0,-1)$) {\tiny\textsf{Enter}};
+  \draw[rounded corners={1mm}]
+    ($(88,8)+(0.2,0.2)$) rectangle ($(92,16)+(-0.2,-0.2)$);
+  \node[anchor=west] at ($(88,16)+(0,-1)$) {\tiny\textsf{+}};
+  % fourth row, purple note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {47/51/79/{F\myShSh},51/55/81/{G\myShSh}} {
+    \draw[rounded corners={1mm},fill=red!50!blue!80!black]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,12)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,8+1.5)!0.5!(\xb,8+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fourth row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {7/11/59/{C\myFl},11/15/61/{D\myFl},15/19/63/{E\myFl},
+     35/39/73/{C\mySh},39/43/75/{D\mySh},43/47/77/{E\mySh}} {
+    \draw[rounded corners={1mm},fill=black]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,12)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,8+1.5)!0.5!(\xb,8+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fourth row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/7/{}/{},19/23/65/F,23/27/67/G,27/31/69/A,31/35/71/B} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,12)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,8+1.5)!0.5!(\xb,8+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fifth row, black note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {5/9/52/{F\myFl},9/13/54/{G\myFl},13/17/56/{A\myFl},17/21/58/{B\myFl},
+     33/37/66/{F\mySh},37/41/68/{G\mySh},41/45/70/{A\mySh},45/49/72/{B\mySh}} {
+    \draw[rounded corners={1mm},fill=black]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west,white] at ($(\xa,8)+(0,-1)$) {\tiny\bf\textsf{\ta}};
+    \node[white] at ($(\xa,4+1.5)!0.5!(\xb,4+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fifth row, white note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {21/25/60/C,25/29/62/D,29/33/64/E} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,8)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,4+1.5)!0.5!(\xb,4+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  % fifth row, non-note keys
+  \foreach \xa/\xb/\ta/\tb in
+    {0/5/{}/{},49/60/{}/{},
+     66/70/{$\uparrow$}/{}} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,8)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,8)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keys that span fifth and sixth rows
+  \draw[rounded corners={1mm}]
+    ($(88,0)+(0.2,0.2)$) rectangle ($(92,8)+(-0.2,-0.2)$);
+  \node[anchor=west] at ($(88,8)+(0,-1)$) {\tiny\textsf{Enter}};
+  % sixth row
+  \foreach \xa/\xb/\ta/\tb in
+    {0/6/{}/{},6/11/GUI/{},11/16/Alt/{},16/39/{}/{},
+     39/44/Alt/{},44/49/GUI/{},49/54/Menu/{},54/60/{}/{},
+     62/66/{$\leftarrow$}/{},66/70/{$\downarrow$}/{},70/74/{$\rightarrow$}/{},
+     76/84/{}/{},84/88/./Del} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,0)+(0.2,0.2)$) rectangle ($(\xb,4)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,4)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node[anchor=west] at ($(\xa,4)+(0,-2)$) {\tiny\textsf{\tb}};
+  }
+  % keypad numerals
+  \foreach \x/\y/\t in {76/4/14,80/4/28,84/4/42,76/8/56,80/8/70,
+    84/8/84,76/12/98,80/12/112,84/12/126} {
+    \draw[rounded corners={1mm}]
+      ($(\x,\y)+(0.2,0.2)$) rectangle ($(\x+4,\y+4)+(-0.2,-0.2)$);
+    \node[green!50!black] at ($(\x,\y)+(2,3)$)
+      {\tiny\textsf{Velocity}};
+    \node[green!50!black] at ($(\x,\y)+(2,1.5)$) {\large\bf\textsf{\t}};
+  }
+  % additional key labels
+  \node[blue!50!black] at (3.5,10) {\bf\textsf{sustain}};
+  \node[blue!50!black] at (2.5,6) {\small\bf\textsf{$-$bend}};
+  \node[blue!50!black] at (3,2) {\bf\textsf{$-$8ve}};
+  \node[blue!50!black] at (54,6) {\bf\textsf{$+$bend}};
+  \node[blue!50!black] at (57,2) {\bf\textsf{$+$8ve}};
+  \node[blue!50!black] at (78,18) {\scriptsize\bf\textsf{layout}};
+  \node[blue!50!black] at (80,2) {\small\bf\textsf{tap tempo}};
+\end{tikzpicture}\par
+\vspace*{24pt}}
+\caption{Keyboard layouts.}\label{fig:qwerty-layouts}
+\end{sidewaysfigure*}
+
+This layout is meant to imitate a piano's keyboard layout, with a little
+over 2$\tfrac{1}{2}$ octaves of coverage.  Keys that fall into gaps of the
+piano layout (shown in grey) are assigned to B$\musSharp$ and E$\musSharp$
+(enharmonic to C and F) to make a consistent pattern.  The upper left of the
+main letter area (Q on a QWERTY layout) is Middle~C, and the F key in a
+QWERTY layout, which often has a tactile guide bump on it, is effectively an
+F (shown as E$\musSharp$, but the same MIDI number).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Wicki-Hayden isomorphic layout}
+
+Press Num Lock to switch layouts.  With the Num Lock LED glowing, the
+Gracious Host implements a Wicki-Hayden isomorphic keyboard layout, as shown
+in the lower half of Figure~\ref{fig:qwerty-layouts}.  This layout is named
+after Kaspar Wicki and Brian Hayden, who independently invented and patented
+it in 1896 and 1986 respectively.  It is similar to the layout commonly used
+for concertina keyboards.
+
+The Wicki-Hayden layout treats the keys as an hexagonal grid. 
+Horizontally adjacent keys are a major second (two semitones) apart, pitch
+going up from left to right across the keyboard.  From any note the
+diagonally adjacent notes to the right represent the fifth of the note, in
+the higher or lower octave according to whether they are diagonally up
+and right or down and right.  Similarly, the diagonal notes to the left are
+the fourth of the current note.  And going directly up or down two rows
+corresponds to going up or down by a whole octave.
+
+{\center\begin{tikzpicture}[scale=0.234]
+  \foreach \xa/\xb/\ta/\tb in
+    {22/26/72/C,26/30/74/D} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,12)+(0.2,0.2)$) rectangle ($(\xb,16)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,16)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,12+1.5)!0.5!(\xb,12+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  \foreach \xa/\xb/\ta/\tb in
+    {19/23/65/F,23/27/67/G,27/31/69/A} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,8)+(0.2,0.2)$) rectangle ($(\xb,12)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,12)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,8+1.5)!0.5!(\xb,8+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  \foreach \xa/\xb/\ta/\tb in
+    {21/25/60/C,25/29/62/D} {
+    \draw[rounded corners={1mm}]
+      ($(\xa,4)+(0.2,0.2)$) rectangle ($(\xb,8)+(-0.2,-0.2)$);
+    \node[anchor=west] at ($(\xa,8)+(0,-1)$) {\tiny\textsf{\ta}};
+    \node at ($(\xa,4+1.5)!0.5!(\xb,4+1.5)$) {\large\bf\textsf{\tb}};
+  }
+  \fill (22,11) circle[radius=0.4];
+  \fill (30,11) circle[radius=0.4];
+  \fill (28,7) circle[radius=0.4];
+\end{tikzpicture}\par}
+
+The defining feature of an \emph{isomorphic}\footnote{This word means ``same
+shape.''} music keyboard is that the harmonic relationships are the same
+everywhere on the keyboard.  If you memorize the shape for a given chord
+such as D~minor, shown by the dots above, you can play any chord of the same
+quality, such as C~minor, by shifting the same shape somewhere else on the
+keyboard.  These chords would have to be learned separately on a piano,
+where D~minor is played entirely on white keys and C~minor involves a black
+key.  Melodies can be transposed on an isomorphic keyboard just by moving to
+a different physical location without changing the fingering.
+
+With no octave shift, the Gracious Host's Wicki-Hayden layout puts the F
+and G above Middle~C on the F and G keys of a standard QWERTY layout.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Sustain}
+
+The Caps Lock key activates the \emph{sustain} feature.  Modes like
+quantizer and arpeggiator benefit from being able to play many MIDI notes at
+once; but both because people usually have at most ten fingers, and because
+USB typing keyboards are limited in how many simultaneous keypresses they
+can handle, actually pressing many note keys at once may be a problem.  The
+basic sustain function is that when Caps Lock is pressed, the associated LED
+goes on, and then all note keys pressed at that time or while Caps Lock
+remains pressed, are locked.  These notes remain in effect even if the note
+keys are released.  When Caps Lock is pressed a second time and the LED goes
+off, all the locked notes are considered released at once.
+
+The usual performace practice would be to either hold a chord and tap
+Caps Lock to lock it; or to press and hold Caps Lock, and while holding it
+build up the chord one or a few notes at a time before releasing Caps Lock.
+
+In more detail:  Notes become locked if they are playing at the moment the
+Caps Lock key is first pressed to activate sustain.  They also become locked
+if they are newly pressed \emph{during} that first press of Caps Lock, so
+the sequence ``press Caps Lock and hold; press note key; release Caps Lock''
+results in the note being locked, regardless of exactly when the note key is
+released.  Once locked, notes remain locked, and no additional Note On
+events will be sent, until the second Caps Lock keypress, which will turn
+off the LED and send Note Off events all at once for all the locked notes
+except those that may actually be pressed at the moment of the second Caps
+Lock keypress (which instead will be released when the note keys are
+actually released).  After the first time Caps Lock has been released, with
+the LED on and some notes held, other notes can be played normally. 
+Re-playing a note already held will have no additional effect -- no second
+Note On will be sent -- except that a note whose key is actually pressed
+when releasing sustain will not get a Note Off at the release of sustain,
+but only when its key is also released.
+
+The sustain feature remembers the current channel when it is activated.  If
+you change the channel while sustain is active, notes played in the new
+channel are completely separate.  New Note On messages may be sent in the
+new channel, and the eventual Note Offs when sustain is released will be
+sent in the original channel.  Also, sustain is associated with \emph{note
+numbers}, not with \emph{physical keyboard keys}.  By changing the octave
+shift or the piano/isomorphic layout selection at different points in the
+use of the sustain feature, it is quite possible for the same note key to
+end up causing more than one note to be locked.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Octave shift}
+
+The two Ctrl keys on the USB keyboard control octave shift.  Press the left
+Ctrl key (just press like a normal key; it is not necessary to hold it down,
+or press other keys along with it) to shift down one octave.  The typing
+keys that send MIDI notes will send notes one octave lower than their
+default values.  Press the right Ctrl to shift one octave up.  The Scroll
+Lock LED will glow (as well as possibly blinking with the beat, see ``tap
+tempo'' below) whenever an octave shift in either direction is active.
+
+Pressing the shift keys again, shifts further.  Shifting up to five octaves
+down or four octaves up is allowed, those limits being chosen to allow
+covering the range of MIDI notes 1 to 127 in either keyboard layout, even on
+a US-style keyboard with relatively few keys.  However, in practice it will
+seldom be useful to play notes outside the range 24\ldots 96, which
+corresponds to the range of the control voltage output DACs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Pitch bend}
+
+The right and left Shift keys send MIDI pitch bend messages.  The pitch will
+bend up or down while you hold either Shift key (cancelling out, if both) up
+to its default limit of two semitones, then will return once the Shift key
+is released.  The speed of bend and return is fixed in the firmware; to
+achieve finer control of pitch bend you need a proper MIDI controller
+with this feature.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Channel selection}
+
+Each function key (F1, F2, and so on) corresponds to the MIDI channel with
+the same number.  Press one of these keys to set the channel on which the
+typing keyboard will send subsequent MIDI events.  See the previous chapter
+of this manual for descriptions of the different channels.  You can, for
+instance, press F2 to switch to duophonic mode, or F10 to send drum
+triggers.  Channel~1 is the default when the typing keyboard is first
+connected, before any function key has been pressed.
+
+The remaining keys in the function-key row select the remaining channels:
+Print Screen, Scroll Lock, and Pause/Break (at the right of the row)
+correspond to Channels~13, 14, and~15 as if they were F13, F14, and F15; and
+Esc (usually at the left of the row, though it appears elsewhere on some
+keyboards) to Channel~16 as if it were F16.  However, in the current
+firmware as of this writing, channels beyond~12 do not actually do
+anything.
+
+Note that the MIDI subsystem determines its mode from \emph{the channel of
+the most recent Note On message}.  Just pressing a function key to change
+channels will not change the MIDI subsystem's mode; you must press a note
+key to send a Note On before the MIDI subsystem will change modes.  The
+concept here is that the module implements a MIDI to CV interface.  When you
+plug in a typing keyboard, the typing keyboard is just a funny-looking MIDI
+master keyboard plugged into the interface.  The function keys are
+configuration commands to the keyboard regarding what channel it should send
+MIDI messages on in the future; they are not MIDI messages in themselves. 
+The MIDI subsystem, to the extent possible, responds to MIDI messages from a
+typing keyboard just the same way it would respond to MIDI messages from a
+music keyboard.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Velocity}
+
+The keypad numerals 1 through 9 set the velocity for MIDI Note On events. 
+Press any of these to choose the velocity for any subsequent notes.  The
+values are as shown in the keyboard layout diagram, equal to the keycap
+numeral value times 14, to provide equally spaced values throughout the MIDI
+range.  Velocity is only relevant to Channel~1 (where it will be a control
+voltage appearing on the right analog output) with the default firmware, but
+some customized or future firmware might use velocity in other channels in
+some way.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Tap tempo}
+
+The keypad Insert (0) key functions as \emph{tap tempo}.  This allows the
+performer to establish a clock for the arpeggiator and sync modes without
+needing to patch in a clock control voltage signal.  In some channel modes
+the resulting clock appears as a control voltage output and can be used to
+control other modules.  Although there are some differences in the internal
+implementation, the tap tempo feature basically serves the same purpose as
+MIDI Timing Clock messages (24 of those per tap).
+
+Press the tap tempo key at least twice, on the desired beat, to start the
+tempo clock.  The Scroll Lock LED will blink on the beat (overlaid on its
+solid glow, if octave shift is active).  If you enter three or more taps, in
+a reasonably consistent straight rhythm, the tempo will be determined by an
+exponential moving average of the most recent timings; that allows for a
+more precise fit than would be possible by using only the two most recent,
+given the limited precision of USB keyboard timing.  A tap that is not close
+to the established timing, or that seems to have skipped at least one beat,
+will be treated as the start of a new tap tempo sequence, stopping the old
+clock.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Maintenance codes}
+
+It is possible to activate special features, mostly intended for firmware
+testing, by entering a four-digit decimal number through the typing
+keyboard driver.  The only maintenance code that most module owners will
+find really useful is 5833, to run the calibration procedure.  But for
+completeness, here is a list of all the codes supported by production
+firmware.
+
+\begin{description}
+\item[5833] Run the calibration procedure.
+\item[1240] Simulate USB hub insertion (blinks ``H'' in Morse code).
+\item[3627] Simulate insertion of an unsupported USB device (blinks ``D'' in
+Morse code).
+\item[4935] Perform the ``success'' display (normally done as the result of a
+completed calibration).
+\item[6697] Perform the ``failure'' display (normally the result of an aborted
+calibration).
+\item[8189] Throw a driver exception (flashes lights and waits for USB
+disconnect).
+\item[8605] Simulate a power-on reset.
+\end{description}
+
+Special firmware assembled with test routines included will also accept a
+few other codes to run the test routines, but those will have no effect on
+standard production firmware.  See the \emph{Gracious Host Programmer's
+Manual} for details on compiling test firmware, and how to
+create your own maintenance codes.
+
+To enter a maintenance code:
+
+\begin{itemize}
+\item Attach a typing keyboard to the module.
+\item Press and hold one (either) of the Ctrl keys and one of the Alt keys.
+\item While holding Ctrl and Alt, type out the four digits of the
+maintenance code, on the numeric keypad.
+\end{itemize}

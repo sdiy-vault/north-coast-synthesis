@@ -1,0 +1,524 @@
+% $Id: qwertys.tex 9835 2022-02-13 02:57:36Z mskala $
+
+%
+% USB boot keyboard driver
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{USB boot keyboard driver (qwerty.s)}
+
+The USB boot keyboard driver allows a common QWERTY (typing) keyboard to
+function like a MIDI (musical) keyboard for controlling the Gracious Host. 
+It also supports some extra features like tap tempo for the arpeggiator
+channels, and \emph{maintenance codes} used in testing the module.
+
+This driver is called the ``boot keyboard'' driver from the terminology used
+by the USB standards.  They define a complicated protocol for \emph{human
+interface devices} including keyboards, and then a simplified subset of the
+keyboard behaviour that is easier to implement and almost universally used
+in preference to the complicated protocol despite the standard's presenting
+it as only meant for use during a personal computer's boot process.
+
+\section{TPL entry and key tables}
+
+The first items in the source file are a TPL entry, which recognizes USB
+devices that expose an interface of class~3 (``HID''), subclass~1
+(``boot''), protocol~1 (``keyboard''); and two tables of information
+associated with key codes.
+
+USB defines its own list of key codes, generally starting with the most
+common keys that every keyboard has, in the lower code numbers, and then
+proceeding toward more obscure keys in higher numbers.  Exactly what a key
+code refers to (the legend written on the key; the location of the key on
+the keyboard; or the character the key will send when typing) is not clear
+and seems to be inconsistent.  Keyboards with unusual layouts may map the
+keys to the codes in surprising ways.  Unfortunately, there is nothing the
+Gracious Host can do about variations in keyboard layout; there is no
+standard way for keyboards to report more detail about their layout than
+just sending the key codes.  The Gracious Host just assigns a function to
+each key code, with the diagrams in the UBM showing where those key codes
+are most likely to appear on a typical consensus keyboard layout.
+
+Key codes 0x00 to 0x03 are reserved and error codes.  Codes 0x04 to 0x1D are
+the letters of the Latin alphabet.  Then codes 0x1E to 0x27 are numerals --
+the main, typing numerals typically found on the row above the letters.  All
+these codes are recognized in the key-handling code by checking the range
+boundaries.
+
+Key codes that require individual handling subroutines range from 0x28 to
+0x64.  Starting from press\_tbl\_start in program memory is a table of
+program memory addresses for the codes from 0x28 to 0x64.  For each code,
+the address stored in the table is that of a handler to be called when the
+key is pressed.  The instruction immediately before the press handler is the
+start of the release handler, so by looking up the press handler and
+subtracting two address units, the framework code finds the address of the
+release handler.  At the release-handler address might be a \insn{return}
+(if there is no processing needed for the key release); a \insn{nop}
+(causing execution to fall through into the press handler, if the same code
+can handle both); or a branch instruction pointing at a longer handler
+elsewhere.
+
+A second table of two-byte entries indexed by key code starts one
+instruction before the note\_tbl\_start label and records, for each key that
+is meant to play a MIDI note, the MIDI notes that key will play in
+piano-style (Num Lock off) and isomorphic (Num Lock on) layout modes.  This
+table covers key codes 0x04 through 0x38 for letters, numerals, and a few
+punctuation marks, but also key code 0x64 at what is effectively index $-1$,
+the instruction word immediately before the note\_tbl\_start label.  The low
+byte of each entry is the MIDI note number for pressing the key in
+piano-style mode and the high byte is for isomorphic mode.  A few key codes
+that fall into the 0x04--0x38 range but are not note keys, such as 0x29 for
+Esc, have dummy 0xFFFF entries.  Laying the table out this way, with some
+special-case code to check for the exceptional index before the starting
+address of the table, ended up saving program memory compared to other ways
+the same information might be recorded.
+
+Some assembler directives after the key tables check the length of each
+table by subtracting its start and end addresses, and raise an error if a
+table length is not as expected.  That is intended to guard against editing
+errors which can easily leave the wrong number of entries in a table.
+
+\section{Maintenance codes}
+
+The typing keyboard driver has a general-purpose feature for activating
+hidden and special firmware features which might be useful in testing and
+debugging.  With a typing keyboard plugged in, the user can hold the Ctrl
+and Alt keys and type in a four-digit decimal code on the numeric keypad. 
+Then the keyboard driver jumps to an address associated with the code by a
+table lookup.  Other parts of the firmware can add entries to the table for
+code-accessible entry points they may define.
+
+Two examples of what the table entries look like are in qwerty.s under the
+heading ``Maintanance code table.''  The entry format is one word for the
+four-digit code (in BCD, first digit should not be zero) followed by one
+word for the address to jump to.  In this file, the code 8605 is defined to
+jump to RESET\_INSN (simulating a reboot of the module) and 8189 is defined
+to jump to THROW (simulating abnormal driver termination).
+
+Other source files should define their maintenance codes in sections named
+mtbl or starting with mtbl\_.  The linker will gather such sections in
+memory between the \_mtbl\_init and \_mtbl\_done sections defined here; the
+order of entries within the table is unimportant.  New code values should be
+selected uniformly at random from the set of four-digit numbers not starting
+with zero.  I chose mine by rolling dice.
+
+The code that recognizes maintenance codes is described below in the
+sections on the Ctrl, Alt, and keypad numeral keys.
+
+\section{RAM data}
+
+Most of the driver's variables defined in the common data area will be
+described with the code that uses them, but it is worth noting that
+FIND\_IN\_OUT\_ENDPOINTS, defined in this file, expects to find
+int\_in\_ep\_ptr and int\_out\_ep\_ptr at the very start of the common area,
+immediately followed by the array of endpoints it will search.  Other
+drivers that share this code (in particular, the USB Mass Storage and USB
+MIDI drivers) must also use this layout for compatibility.
+
+\section{Driver initialization and main loop}
+
+The code in FIND\_IN\_OUT\_ENDPOINTS is separated into a subroutine and
+given a global label so that it can be shared by other drivers.  Its general
+function is to scan the array of endpoints found by a previous call to
+USB\_CONFIGURE\_DEVICE and find the first input and first output endpoint,
+if any.  It writes pointers to these endpoint structures to int\_in\_ep\_ptr
+and int\_out\_ep\_ptr, and also leaves them in W6 and W7.  The pointers are
+null (0x0000) if no endpoint in the corresponding direction was found at
+all.  This code will also terminate with a THROW if USB\_CONFIGURE\_DEVICE
+found no endpoints at all.
+
+The driver entry point at qwerty\_driver starts by calling
+USB\_CONFIGURE\_DEVICE and USB\_SET\_BOOT\_PROTOCOL to select the
+configuration and boot protocol.  Then it calls FIND\_IN\_OUT\_ENDPOINTS to
+find the interrupt in endpoint, and the interrupt out endpoint if there is
+one.  The in endpoint is necessary, and the code will terminate with a
+branch to COMPLAIN\_ABOUT\_DEVICE if none was found.  The out endpoint will
+be used if present but is not required, so that is not checked at this
+point.
+
+Next, it clears the common data variables.  Most of them are cleared to
+zero, but the key\_notes array (recording the channel and note number
+currently played by each pressed note key) is cleared to 0xFFFF because
+0x0000 could in principle be a valid data value there.
+
+After that the driver code sets up the IRP to point at its data buffer; sets
+the polling delay to match what was requested by the device, but limited to
+the range 2\,ms to 100\,ms (it is expected that most devices will request
+10\,ms); initializes a couple more variables that need non-zero init values;
+and starts up the MIDI backend.
+
+The main loop starts at driver\_loop with a call to MIDI\_BACKGROUND so that
+the MIDI back end can do its ongoing tasks.  It loops on that and a
+\insn{pwrsav} instruction until USB\_LOOP\_CHECK returns nonzero, indicating
+time for another poll of the interrupt endpoint.  Then it sets up the IRP
+for a transfer of eight bytes from the interrupt in endpoint, and does the
+transfer with a call to USB\_WAIT\_ON\_IRP.  The use of UF\_MIDI\_BKGND in
+USB\_FLAGS means that USB\_WAIT\_ON\_IRP will also be calling MIDI\_BACKGROUND
+inside its own loop.
+
+Some USB keyboards will return an empty packet if there is no change from
+the last update.  There is a check at this point for whether the packet is
+less than eight bytes (which in practice means it'll be zero); in such
+cases, it branches to handle\_lr\_shift, skipping most of the key
+processing.
+
+\section{Most modifier keys}
+
+The first byte of data returned by the keyboard represents the status of
+``modifier'' keys; these are the ones like Shift and Alt that are typically
+held down while pressing other keys to change the other keys' effects.  The
+eight bits of the byte represent pressed or unpressed status of Shift, Ctrl,
+Alt, and what the USB document calls ``GUI,'' which is a modifier key that
+usually has a computer or operating system vendor's logo on it (Apple,
+Microsoft, etc.).
+
+Code at this point in the driver loop handles Ctrl and Alt.  As of this
+writing, GUI is ignored, and the Shift keys are handled later because they
+have an effect (pitch bend) on every pass through the loop as long as they
+are pressed, regardless of whether we actually received a report of a status
+change from the keyboard on this particular pass.
+
+The previous\_modifiers variable stores the value of the modifiers byte from
+the last update.  That gets compared against the new value to detect whether
+either Ctrl key is newly pressed.  If so, a new press of left Ctrl subtracts
+12 from the variable named octave (which represents the current octave
+shift, measured in semitones) and a new press of right Ctrl adds 12.  The
+variable is limited to four octaves down or five octaves up, representing
+the furthest shifts at which the keyboard layout will still be able to hit
+at least a few valid MIDI note numbers.
+
+Alt is currently only used in combination with Ctrl, for entering
+maintenance codes.  So there is a check for whether both Ctrl and Alt are
+pressed (either or both Ctrl keys, and either or both Alt keys).  If not,
+the maintenance\_code variable gets cleared.  Digits get shifted into this
+variable when the keypad numerals are pressed, but since every valid code
+starts with a nonzero digit, the variable will never be able to contain a
+valid code and cause something to happen unless Ctrl and Alt are held
+throughout the code entry process.
+
+\section{Regular typing keys}
+
+Keys other than modifier keys are reported in the third through eighth bytes
+of the keyboard's response packet.  (The second byte is ``reserved for OEM
+use'' by the standard.)  The currently-pressed keys are listed in these
+bytes, one byte per key, with the remaining bytes filled by zeroes.  It is
+because of this data structure that the USB boot keyboard protocol is
+limited to a maximum of six simultaneously-pressed keys.
+
+This code makes use of an array called key\_flags, containing a word for
+each of the 256 byte values, initialized to zero.  The previous value of the
+six pressed-key bytes is kept in previous\_keys, and the logic around the
+array runs as follows.  The flag checks are intended not only to detect new
+presses and releases between the earlier update and the current one, but
+also handle reasonably the case of a key code listed more than once in the
+same update.
+
+\begin{itemize}
+  \item For each key in previous\_keys, set bit 1 of the corresponding word
+    in key\_flags.
+  \item For each key in the buffer (new update), set bit 0.  If it and bit 1
+    were both previously zero, then we have a new press of this key; handle
+    it (as described below).
+  \item For each key in previous\_keys, clear bit 1.  If it was set, and bit
+    0 is not set, then we have a new release of this key; handle it (as
+    described below).
+  \item For each key in the buffer, clear bit 0.  As a side effect of this
+    loop, write the new value of the byte to previous\_keys.
+\end{itemize}
+
+The four loops above share a star section fragment called find\_key\_flags
+which indexes into the (current or saved) buffer, and finds the appropriate
+word of the key\_flags array.  In that same star section is a label called
+second\_return\_insn, which is a \insn{return} instruction immediately after
+another \insn{return}, used for no-op entries in the press handler table.
+
+The second and third loops, which detect newly pressed and newly released
+keys, share the find\_press\_tbl\_entry subroutine, which looks up the key
+code in the press handler table with handling for out-of-range values.  It
+returns NZ status if the key code has a press handler, and the address of
+the press handler in W4 in that case.  For key codes less than 0x28 it
+returns note\_press; others get looked up in the table.
+
+Recall that the instruction word immediately before the press handler is
+supposed to be the start of the release handler.  The second loop (handling
+presses) calls the address that find\_press\_tbl\_entry returned in W4 on NZ
+status; but the third loop (handling releases) decrements it first. 
+Subroutines called this way do whatever is needed to handle the press or
+release of the key in question.
+
+\section{Left and right shift}
+
+After handling presses and releases of ordinary (non-modifier) keys, the
+main driver loop enters the code at handle\_lr\_shift, to process the pitch
+bend effect of the Shift keys.  If it received an empty update from the
+keyboard, processing skips to this point, because pitch bend should keep
+happening on every update, even the empty ones.  The idea is that pitch bend
+keeps going up at a fixed rate as long as right Shift is held, down as long as left Shift is
+held, then returns toward zero at another fixed rate when neither is held.
+
+This code looks at the previous\_modifiers variable, which at this point
+contains the \emph{current} modifiers byte if the keyboard sent one, but
+otherwise stores the last modifiers byte that the keyboard did send.  It
+builds up the rate of pitch bend to apply in W0.  It sums negative
+QWERTY\_PBEND\_RATE (set in config.inc) if the left Shift is pressed and
+positive if the right Shift is pressed.  If both, those will cancel to zero. 
+Then if W0 is zero and the current pitch bend value is nonzero, it sets W0
+to $\pm$QWERTY\_PBEND\_RETURN (another configuration value from config.inc),
+with sign opposite to the current pitch bend.
+
+The pitch bend rate is measured in pitch bend units \emph{per millisecond},
+so it gets multiplied by the interrupt endpoint's update interval (measured
+in milliseconds) to get the adjustment to apply to the pitch bend.  Next,
+the absolute values are checked:  if the adjustment would cause the pitch
+bend to strictly cross zero (go from negative to positive, or positive to
+negative), then it is reduced to only take the pitch bend to zero.
+
+Finally, the new pitch bend value (old value plus adjustment) gets
+calculated, with clamping to its 14-bit signed integer range; formatted
+into a MIDI message for the current channel; and passed to
+MIDI\_READ\_MESSAGE.
+
+
+\section{Keyboard LED update}
+
+The last step in the main driver loop is to update the keyboard LEDs.  The
+variable named leds holds the desired new status of the LEDs, while
+previous\_leds holds its value at the last update.  Bit~0 of leds
+corresponds to the Num Lock LED, representing isomorphic mode, and is
+maintained by the press/release code for the Num Lock key.  Bit~1
+corresponds to the Caps Lock LED and is set by code at this point in the
+main loop if the sustain variable is nonzero.  Bit~2 corresponds to the
+Scroll Lock LED, which lights under circumstances summarized as octave shift
+XOR beat flash.  It gets set if the BEAT\_FLASH variable low byte is
+nonzero, which is true for 80\,ms at the start of each beat when the tempo
+clock is running, and then it gets toggled if the octave variable is
+nonzero.
+
+The new value for leds is compared against previous\_leds, and if they
+differ, then the keyboard must be told to update its LEDs.
+
+If the keyboard exposes an output endpoint (recognized by int\_out\_ep\_ptr
+nonzero, as set by FIND\_IN\_OUT\_ENDPOINTS) then it is preferable to set
+the LEDs by writing to that endpoint, and the driver loop code does that,
+setting up the IRP accordingly and calling USB\_WAIT\_ON\_IRP.  Without an
+output endpoint, it calls USB\_SET\_REPORT instead, to send the LED update
+command using the CTRL endpoint.  Either way, this is the end of the main
+loop and it branches back to driver\_loop.
+
+\section{Press and release:  note keys}
+
+The rest of the source file consists of per-key handlers,
+called by the main loop when non-modifier keys are pressed or released
+according to the entries in the press table.  The release handler is
+expected to start on the instruction immediately before the start of the
+press handler.  These handlers should preserve W11--W15, but may trash
+W0--W10.  On entry, the main loop leaves the key code in W3 (low byte, with
+the high byte zeroed); \emph{twice} the key code in W0; and a pointer to the
+flags word in W1.
+
+The first pair of handlers is for keys that play MIDI notes.  Those include
+the main alphabet letters, the numerals in the row above them, and most of
+the punctuation keys clustered around the sides of the typical keyboard
+layout.
+
+When a note key is pressed, the main loop calls note\_press, which starts by
+looking up the key in the note table, with special-case handling for key
+code 0x64.  The lookup yields a word representing the key's MIDI note
+numbers in piano-style and isomorphic layout modes.  Depending on the
+current mode, the code chooses which byte to use and formats it into a word
+in W10 with the note number in the low byte and the MIDI channel in the high
+byte.
+
+Next, it applies the octave shift by adding the octave variable (measured in
+semitones) to the note number, clamping the result to the range 1--127 for
+valid note numbers.  It records the current channel and note number for this
+key in the key\_notes array, which keeps track of the note currently being
+played by each key, if any.  The note played by a key is not necessarily the
+same every time because of octave shift and isomorphic/piano mapping
+switches, and the channel can vary as well.  In general, once a key starts a
+note it will continue playing the same note on the same channel until
+released even if the shift, mapping, and channel change while the key
+remains pressed.
+
+Some special handling is required for the sustain feature (Caps Lock,
+discussed in the next section).  At this point the issue is that if the key
+just pressed plays a note \emph{and channel} that is already being sustained
+by the sustain feature, then it should not generate a new MIDI note on
+message.  So there is a check first against the channel on which sustain is
+active (stored in the variable named sustain); then whether the note that
+this key is playing is already recorded in the sustained\_notes array.  If
+the note is already being sustained, then the code to send the note on is
+skipped.  But otherwise, the code sets up the arguments in W1 and W2 and
+calls MIDI\_READ\_MESSAGE for a note on.
+
+If the sustain state is 1, which corresponds to Caps Lock actually pressed
+at the moment and not only locked on, and the current channel matches the
+sustain channel, then new notes should become sustained.  In that case the
+current note is recorded in the sustained\_notes array.  And that ends the
+key pressed handler.
+
+The key released handler is next in the source file at the note\_release
+label, which is referenced by the branch immediately before note\_press so
+that the key released code will be able to find it.  This handler starts by
+setting the key's entry in the key\_notes array to the null value 0xFFFF,
+recording the fact that this key is no longer playing a note.  The old value
+is captured for use in the following checks.
+
+The check for sustain is similar to the check in the press handler:  if
+sustain is active, the note just released was in the sustained channel, and
+it was actually one of the sustained notes recorded in the sustained\_notes
+array, then this note should continue after the end of the keypress.  It
+will instead get a note off message when sustain ends.  And in that case,
+the note off message is skipped, with a branch to RETURN\_INSN that ends the
+release handler.  But in other cases, there should be a note off message at
+the end of the keypress.  The code sets up W1 and W2 for a note off
+(actually zero-velocity note on) and tail calls MIDI\_READ\_MESSAGE.
+
+\section{Press and release:  sustain (Caps Lock)}
+
+The ability to press multiple keys at once and have them all register
+correctly is usually called \emph{rollover} in the case of typing keyboards
+and \emph{polyphony} in the case of music keyboards.  The USB boot keyboard
+protocol can support at most six-key rollover for non-modifier keys
+because there are only six bytes for key codes in the report format; and
+because of limitations on the wiring and scanning of the switch matrix, most
+USB keyboards are unable to really support even six simultaneous keys in at
+least some combinations.  Quite often there exist combinations of just
+two or three keys that cause the keyboard to either fail to report one of
+the pressed keys, or report a ``ghost'' key that was not actually pressed. 
+Furthermore, human anatomy limits how many keys the user can accurately
+press at once even if the keyboard could register them all, and some musical
+applications (like the quantizer modes) may create a demand for holding
+notes longer than it is convenient to hold down a keyboard key.
+
+To help resolve these issues the typing keyboard driver has a \emph{sustain}
+feature activated by the Caps Lock key, which allows locking an arbitrarily
+large set of notes to remain held as long as desired, without needing to
+physically press many keys simultaneously.  The basic concept is that note
+keys which overlap with a first press of Caps Lock become sustained, and
+remain playing until a second press of Caps Lock.  More detail on the use of
+the sustain key from the performer's point of view is covered in the UBM.
+
+In more detail from a code perspective, the variable named sustain takes on
+the values 0, 1, and 2 to track the current state in the following sequence
+of events.
+\begin{itemize}
+  \item Startup state, sustain state 0:  note keys generate note on messages
+    when pressed, note off messages when released.  Caps Lock LED off.
+  \item At the moment of the first Caps Lock press:  LED goes on, sustain
+    state becomes 1.  Current channel is memorized as the sustain channel,
+    all currently-playing notes in that channel become sustained notes.
+  \item During the first Caps Lock press:  any newly-played notes in the
+    sustain channel generate note on messages and become sustained notes too.
+    Keys released that were
+    playing sustained notes in the sustain channel, do not generate note
+    off messages.  Keys pressed that would play notes already sustained
+    in the sustain channel, do not generate additional note on messages.
+  \item At the first release of the Caps Lock key:  LED remains on, sustain
+    state becomes 2.
+  \item Before the next press of Caps Lock, while sustain state remains 2:
+    note keys generate note on and off messages normally, except those
+    corresponding to sustained notes in the sustain channel have no effect.
+  \item At the second press of Caps Lock:  sustain state returns to 0.  Caps
+    Lock LED goes off.  Note
+    off messages are generated for all sustained notes, except those for
+    which there is currently a note key actually pressed.  All sustained
+    notes are cleared.
+  \item The second release of Caps Lock has no additional effect.
+\end{itemize}
+
+Some support for this behaviour was in the note key press and release
+handlers described above.  The rest is in the sustain\_press and
+sustain\_release handlers, called on press and release of Caps Lock.  The
+LED setting is done in the driver main loop, with a check of the current
+state value.
+
+The sustain\_press handler starts by checking whether the state is 0 or 2,
+which determines whether this is the first or second Caps Lock press of the
+sequence.  On the first press, it increments the state to 1, stores the
+current channel in sustain\_channel, then scans the key\_notes array to find
+currently-playing notes.  All those that are in the current channel (some
+might not be, if the channel changed while the key was held) get recorded in
+sustained\_notes, and then the handler returns.
+
+On the second press, code at the unlock\_sustain label starts by clearing
+the sustain state.  Then it scans key\_notes to find any notes in the
+sustain channel that are currently being played by note keys; such notes are
+\emph{removed} from sustained\_notes, because their note off messages will
+be delayed until the keys are released.  Then it scans sustained\_notes and
+sends note off messages to the MIDI backend for all the notes it finds
+there, clearing the array as a side effect, before returning.
+
+The sustain\_release handler is very simple:  it just checks whether the
+state was~1 (indicating that it's the first Caps Lock keypress ending now)
+and if so, increments it to~2.
+
+\section{Press and release:  channel keys (F1--12 etc.)}
+
+The function keys F1--F12, and four more keys (Print Screen, Scroll Lock,
+Pause/Break, and Esc), correspond to the 16 MIDI channels; pressing a
+function key switches the current channel, used by future note key presses,
+to the associated channel.  The key codes for these keys are conveniently
+arranged: 0x29 for Esc and 0x3A to 0x48 for the others.  So the press
+handler for these keys, at channel\_press, subtracts 0x3A from the key code
+to get the channel number (in internal format, where F1 and Channel~1
+correspond to value 0), and then if the result is negative indicating the
+Esc key was pressed, it substitutes 0x0F for Channel~16.  The result goes
+into the variable named channel.
+
+There is no release handler for these keys; the instruction before
+channel\_press is a \insn{return}, shared with the end of sustain\_release.
+
+\section{Press and release:  isomorphic mode (Num Lock)}
+
+Pressing Num Lock toggles the isomorphic keyboard layout.  The press handler
+is just a \insn{btg} instruction that toggles the Num Lock bit in the
+variable named leds, followed by a \insn{return}, and there is no release
+handler.  The note key handler looks at the Num Lock bit in leds to
+determine which layout to use.
+
+\section{Press and release:  velocity (keypad numerals)}
+
+The keypad numerals 1--9 serve two purposes:  they set the velocity that
+will be sent with note on events, and they enter digits of a maintenance
+code.
+
+The code at velocity\_press starts by subtracting 0x58 from the key code to
+get the digit value.  That is multiplied by 14
+and stored in the velocity variable.  Then (at
+handle\_maintenance\_code, labelled for reuse by the keypad-zero handler) it
+shifts the digit value into the low four bits of the maintenance\_code
+variable, moving up whatever bits were already there.
+
+Bearing in mind that maintenance\_code is constantly reset to zero when Ctrl
+and Alt are not both held, and all maintenance codes start with a nonzero
+digit, if the variable ever contains a complete maintenance code then that
+means the user has gone through the full procedure of holding Ctrl and Alt
+while typing the four digits.  So a loop at this point scans the maintenance
+code table, checking the value of maintenance\_code against the codes in the
+table.  If one matches, it jumps to the address associated with that code in
+the table.  With no match, the handler returns.
+
+\section{Press and release:  tap tempo (keypad Insert)}
+
+The keypad zero/insert key's main function is to enter tap tempo commands
+for the MIDI backend's timer.  It also serves as a zero when entering
+maintenance codes.  The release handler is just a \insn{return}.  The press
+handler calls MIDI\_TEMPO\_TAP, then tail calls handle\_maintenance\_code
+with W3 cleared to enter a zero digit in the maintenance code.

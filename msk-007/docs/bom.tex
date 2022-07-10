@@ -1,0 +1,45 @@
+% $Id: bom.tex 9368 2021-08-29 19:28:15Z mskala $
+
+%
+% MSK 007 bill of materials
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\onecolumn
+\chapter{Bill of materials}
+
+{\centering
+\fbox{This table is not a substitute for the text instructions.}
+
+\begin{longtable}{rp{1in}cp{3in}}
+  \textbf{Qty} & \textbf{Ref} & \textbf{Value/Part No.} & \\ \hline \endhead
+\input{bomdata.tex}
+\end{longtable}\par}
+
+Fixed resistors should be 1\%\ metal film throughout.  Capacitor values
+are not critical \emph{except} the 470pF 1\%\ integration capacitors
+(marked as such), which must be 1\%\ or better tolerance and should have
+good loss and temperature characteristics.
+RoHS-certified zinc-plated steel hardware is recommended, not stainless
+steel because of galvanic-corrosion incompatibility with aluminum parts.
+
+Also needed:  solder and related supplies, DIP sockets, one nylon cable tie,
+PCBs, panel, knobs, Eurorack power cable, etc.
+
+\twocolumn

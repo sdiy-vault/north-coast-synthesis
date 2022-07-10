@@ -1,0 +1,1310 @@
+% $Id: midis.tex 10138 2022-06-04 23:46:50Z mskala $
+
+%
+% MIDI backend driver
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{MIDI backend driver (midi.s)}
+
+The MIDI backend driver in midi.s has the job of interpreting MIDI messages
+as instructions to drive the module's outputs (DACs and trigger/gates) in
+musically appropriate ways.  It is split into a separate module so that it
+can be shared by more than one of the per-device USB drivers: both the
+USB-MIDI driver (usbmidi.s) and the typing keyboard driver (qwerty.s) are
+capable of generating MIDI messages, and some future driver for other
+controller hardware might well do the same.  Having a single MIDI backend
+ensures consistent behaviour among these drivers.
+
+Because this module runs while others do, and those other modules expect to
+have control of the common data area, the MIDI backend's state goes into
+permanently-reserved (static) RAM variables declared in the .bss assembler
+section.  The variable declarations in the source file are bracketed by the
+labels start\_clear and end\_clear, and a \insn{repeat} loop in MIDI\_INIT
+fills them with zeroes when the driver starts up.
+
+For the most part, the MIDI backend operates on the assumption that only one
+MIDI channel will be used at a time, but at least between channels~8 and~9,
+potentially between other pairs of channels designed to work together, it is
+necessary to keep separate data for pitch bend and note in progress.  The
+source code defines a block of (currently) six bytes containing the
+variables mono\_data, pitch\_bend\_amt, and pitch\_bend\_range, which is
+duplicated for even and odd channel numbers.  The MD\_BLOCK\_SIZE symbol is
+a constant set to the size of the duplicated block.  The find\_mono\_data
+helper routine will point W6 at the start of this block appropriate to the
+current channel when processing a MIDI message, and code to access these
+variables indexes using W6.  Thus, pitch bend sent in any even channel will
+affect all even channels but no odd channels, and vice versa.
+
+\section{Driver initialization}
+
+Other modules that will use the MIDI backend call MIDI\_INIT during their
+startup, to both configure the hardware and initialize the backend's
+internal state.
+
+The hardware configuration used by this driver is summarized in
+Table~\ref{tab:timers} on page~\pageref{tab:timers}.  It includes Timers~4
+and~5 configured as a single 32-bit timer, referred to as Timer~4/5.  This
+32-bit timer counts at a 1:8 prescaler ratio from the instruction clock
+(therefore 2\,MHz) and resets at the MIDI 24~PPQN rate.  More information on
+the tempo clock is in the ``tempo timing'' section below.  One thing to note
+in the initialization is that the tempo clock starts out effectively turned
+off, by forcing the reset time to the longest possible.  That is $2^{32}$
+counts per reset, which works out to about 35.8 minutes per reset, 14.3
+hours per quarter note, and 0.0012~BPM; but in fact, code in
+MIDI\_BACKGROUND prevents the tempo timer from advancing at all, even at
+this slow rate, when it is meant to be stopped.
+
+Also under MIDI\_INIT, the backend's RAM variables are all initialized (most
+of them to zero), and output compare units~3 and~4 are set up to generate
+pulses for interrupt purposes even though they will not be PPS mapped to
+digital outputs.  Unlike units~1 and~2, which will be reconfigured on the
+fly depending on the MIDI channel, units~3 and~4 retain a single
+configuration all the time the backend is in use.
+
+The initialization ends with a tail call to START\_CRC to prepare the CRC32
+hardware for its use in pseudorandom number generation.
+
+\section{Background processing}
+
+Higher-level code that uses the MIDI backend is expected to call
+MIDI\_BACKGROUND frequently, at least once per millisecond, to handle
+ongoing processing that must happen between other API calls.  For example,
+in arpeggiator modes the backend may need to change the output note even
+though no new MIDI messages have been received.
+
+Most of the logic in MIDI\_BACKGROUND is gated by the SI\_1MS flag in
+SOFT\_INT\_FLAGS, which gets set once per millisecond by the USB multiplex
+interrupt handler and then reset in this code.  If the SI\_1MS flag is not
+set, the code branches past the once-per-millisecond tasks, to the
+timer-stopped and PRNG handling.
+
+Other code in the backend can set flags in the internal background\_flags
+variable to request that things be done on the next millisecond.  Setting
+BF\_EAT\_1MS requests delaying all other such tasks; all that happens is
+clearing that flag and skipping past the other per-millisecond code.  Any
+other flags will be handled on the \emph{next} SI\_1MS.  This ``eat a
+pulse'' facility is used by MIDI channels with gate outputs to handle
+dropping the gate voltage briefly to signal the new note, if a new note
+starts while an old note is still in progress.  The per-channel code drops
+the gate when the new note is detected, and then sets flags for the
+background to bring it back up after about a millisecond.
+
+When there is an SI\_1MS flag detected without a BF\_EAT\_1MS flag, the
+other per-millisecond code runs.  This code handles the flags
+BF\_RAISE\_GATE1, BF\_RAISE\_GATE2, and BF\_RAISE\_CV2, which raise the CVs
+on the corresponding output jacks.
+
+The next per-millisecond task is to maintain the BEAT\_FLASH variable,
+which is a \emph{soft timer} in a slightly unusual format.  The high
+byte of BEAT\_FLASH counts down at a rate of one count per millisecond.  It
+is one-shot, as far as the code at this point is concerned; it will not be
+further modified once it reaches zero.  But the low byte of the
+variable is set to 1 whenever the high byte is nonzero.  Doing that test
+here instead of elsewhere saves program memory by allowing the use of bit
+test and skip instructions everywhere else the value is tested.  BEAT\_FLASH
+is used by the typing keyboard driver (in qwerty.s) and by the MIDI
+channel~12 code (in this file), to flash LEDs on the beat.  Code elsewhere
+in this file sets it to the value 0x5001 at the start of each beat,
+requesting an 80\,ms flash.  Using a soft timer for this purpose makes it
+easier to keep the value correct in external-clock situations, as well as
+saving hardware timer resources for higher-priority uses.
+
+The final per-millisecond task is a call to per\_channel\_background, which
+is split into a subroutine so that it can branch to other subroutines and
+have them return properly into the MIDI\_BACKGROUND code.  After calling
+mono\_data\_from\_recent, which extracts information about the most
+recently-used MIDI channel into W1 and W6, it gets the low bits of W1 and
+uses them to index a jump table.  Those low bits are the channel number of
+the most recently-handled MIDI channel message, with the usual MIDI
+convention that the number really used by the computer is one less than the
+number documented for users: 0x0 is Channel~1, 0xF is Channel~16, and so on. 
+Depending on the recent channel, the jump table either branches to a
+per-channel background routine, or just returns immediately for channels
+that have none.  There is some duplication in the jump table because a
+single background subroutine may do the work for more than one closely
+related channel.
+
+The rest of MIDI\_BACKGROUND runs unconditionally, not only once per
+millisecond.  It forces the tempo clock to remain stopped when it should be
+stopped:  if at maximum period (technically, only the high 16 bits of the
+period are checked against 0xFFFF), then the Timer~4/5 count value is forced
+to the value 0x7FFF7FFF, basically halfway through its count.  Forcing it to
+this value prevents it from ever overflowing and triggering the beat to
+advance.  Any real tempo once set will reduce the period to much less than
+the maximum, at which point this code will allow the clock to run.
+
+The very end of MIDI\_BACKGROUND is a tail call to PRNG\_HASH\_TIMERS, which
+keeps the pseudorandom number generator updated.  Because this call
+indirectly depends on interrupt timing from external events, there is always
+a little bit of uncertainty in when it will happen relative to the count
+values of Timers~3, 4, and~5, and that uncertainty will accumulate in the
+PRNG state.  Even if we just reset Timers~4 and~5 in the tempo-stopped code,
+their fixed values will not reduce the uncertainty that arrives through the
+Timer~3 value.
+
+This code defines another entry point named MIDI\_BACKGROUND\_SAFE, whose
+purpose is to call MIDI\_BACKGROUND while explicitly preserving working
+registers W0--W7 on the stack.  The other working registers are not expected
+to be touched by the MIDI background code; in principle, this call is
+expected to preserve \emph{all} working registers.  It is used inside USB
+waiting loops, where we may want to call the MIDI background with minimal
+impact on the calling code.
+
+\section{The MIDI message and byte streams}
+
+MIDI messages may come to the backend driver as complete messages, or as a
+stream of single bytes; and if they are single bytes, then they may be
+subject to \emph{running status}.
+
+Here is a quick primer on related MIDI concepts.  The MIDI signal consists
+of a stream of messages, each of which is one or more 8-bit bytes.  The
+first byte is called the status byte and it always has its high bit set to
+indicate that it is such.  Additional bytes in a message, if any, are called
+data bytes and have their high bits cleared.
+
+There are different kinds of messages identified by bits 4--6 of the status
+bytes.  Messages that do not have all those bits set (status byte ranging
+from 0x80 to 0xEF) are called \emph{channel} messages.  Each channel message
+will be in one of sixteen channels, indicated by the low nybble of the
+status byte.  A channel message always includes one or two data bytes. 
+Other messages (those with all four high bits of the status byte set, status
+byte from 0xF0 to 0xFF) are called \emph{system} messages and are global to
+all channels.  Those are split into \emph{system common} and \emph{system
+real-time} categories depending on the value of bit 6.  In the case of
+system messsages, the low nybble of the status byte gives additional
+information about the type of the system message instead of specifying a
+channel.  System messages often have no data bytes at all, but some kinds
+have one or more, and they may have an unlimited number of data bytes in the
+case of vendor-defined \emph{system exclusive} (sysex) messages.  Sysex
+messages start with status byte 0xF0 and encompass all further data bytes
+until terminated by status byte 0xF7, which might be thought of as a
+separate ``end of sysex'' message.
+
+Having the high bit set on status bytes and cleared on data bytes is
+supposed to help mitigate errors.  If a MIDI device encounters data bytes
+without having received a status byte, it is allowed to ignore the data
+bytes.  That way, in cases where bytes are lost either due to noise or
+because a cable was recently hot-plugged, at worst the receiving device
+loses the message currently in progress.  It can synchronize at the byte
+level and receive future messages correctly, starting from the next status
+byte.
+
+But there is an exception which reduces this error recovery ability in
+exchange for better throughput in some common use cases: the \emph{running
+status} feature.  In some cases, devices that send MIDI messages are allowed
+to skip sending the status byte and send only the data bytes for a channel
+message.  The most recently received channel message status byte is called
+the running status and is reused for any extra data bytes received.  Any
+channel message (status bytes 0x80 to 0xEF) sets the running status for
+future data bytes.  Any \emph{system common} message (which are those with
+status bytes 0xF0 to 0xF7) clears the running status state; the next message
+will require an explicit status byte.  And any \emph{system real-time}
+message (which are those with status bytes 0xF8 to 0xFF) is supposed to have
+no effect on running status at all; any existing running status remains in
+effect.  System real-time messages are all single-byte messages with no data
+bytes of their own, so there is no ambiguity about whether a data byte
+received after one of these status bytes should be attached to the system
+message or to the running status.  A system real-time message is even
+allowed to occur in the middle of a channel message.
+
+Running status is relevant to the use case where a controller is mostly
+sending notes on a single channel, which can all have the same status byte. 
+Although MIDI defines different status byte values for \emph{note on} and
+\emph{note off} messages, it also allows controllers to send a note on with
+zero velocity to have the effect of a note off, specifically so that the
+controller can keep all the on and off messages under a single status byte
+subject to running status.  MIDI senders almost universally do send
+zero-velocity note ons instead of explicit note offs, to the point that some
+non-compliant receivers depend on it and cannot properly handle explicit
+note off messages.
+
+It should be borne in mind that MIDI was specified in the early 1980s, and
+classic DIN MIDI has a data rate of 31.25\,kbps.  It was necessary both to
+conserve bits, and to have the scheme be easily decodable in as few gates of
+hardware logic as possible.  The state machine and schematic for an
+implementation in 74LS logic chips or similar almost draw themselves given
+the above description of how the bytes are supposed to be handled.
+
+USB-MIDI is based on 32-bit packets instead of 8-bit bytes, and translates
+the messages two ways, both of which need to be supported by receivers like
+the Gracious Host.  A single message (except longer sysex messages) can be
+packed into a single 32-bit packet.  In this case, one complete message,
+including a \emph{required} (not ``running'') status byte and not
+interrupted by a system real-time message although it could itself \emph{be}
+a system real-time message, is included in the packet starting at the second
+byte of the packet.  The first byte contains the CIN field, which says what
+kind of message this is, implicitly specfying the number of data bytes.  The
+first byte of the 32-bit packet also includes a four-bit ``cable number''
+which we and many other implementations ignore but which in theory is
+supposed to allow for 16 separate sets of 16 MIDI channels each to be
+multiplexed on a single USB endpoint, even beyond the multiplexing also
+allowed by having multiple endpoints.  What happens if the CIN field does
+not agree with the status byte is not specified; that is not supposed to
+happen.  Up to two data bytes are packed into the third and fourth bytes of
+the 32-bit packet, with any unused bytes padded by zeroes.
+
+For sysex messages, which may be of arbitrary length not fitting in the
+three-byte payload of a 32-bit USB-MIDI packet, there are several CIN values
+set aside to indicate how many bytes are valid and whether the sysex message
+will continue into one or more additional packets.  The Gracious Host does
+not use sysex messages and need not handle these cases in much detail.
+
+The other way USB-MIDI can translate messages is one byte at a time, with a
+special CIN value indicating that this 32-bit packet carries just an
+uncategorized single byte.  In this case the receiver has to process it as
+a single byte of an ongoing MIDI stream, including all handling of running
+status cases.  Senders are free to send both kinds of USB-MIDI packets.
+
+\section{Message and byte stream parsing}
+
+The Gracious Host's MIDI backend provides two entry points that closely
+correspond to USB-MIDI's concept of parsed messages and unparsed single
+bytes.  The USB-MIDI driver calls these as appropriate for the packets that
+come in, and other drivers that generate MIDI messages (in particular, the
+typing keyboard driver) can also call them.  Usually, drivers that do not
+actually receive a stream of single bytes from somewhere else would be
+expected to call the parsed-message API, as more convenient at both ends than
+having to encode and decode a byte stream.
+
+MIDI\_READ\_BYTE is the entry point for handling a single byte, which should
+be passed in in the low byte of W0.  The logic here is a little convoluted
+because of the need to handle multiple cases.  First, it checks for whether
+the incoming byte is a status byte.  Assuming it is, it checks for high
+nybble equal to 0xF, which indicates a system message.  System messages
+short-circuit to MIDI\_READ\_MESSAGE.  Although some system messages will
+have data bytes, the only ones we actually process are single-byte messages
+without data, and the additional processing to ignore future data bytes, if
+appropriate, is handled later.  Other status bytes are channel message
+status bytes (0x80 to 0xEF) and those are all saved in the running\_status
+variable.  All channel messages require one or two data bytes.
+
+The variable streamed\_bytes is used as a buffer for data bytes that are
+already received, or expected to be received.  The low byte is the first
+data byte; the high byte is the second; and a byte value is set to 0xFF to
+indicate that we still need to fill it in before processing the message,
+bearing in mind that data bytes always have their high bits cleared and so
+the value 0xFF cannot collide with any valid data byte.  Upon receiving a
+channel message status byte, streamed\_bytes is set to either 0x00FF or
+0xFFFF depending on whether the status byte calls for one or two data bytes
+to follow.  Some of this code (starting from reinit\_streamed\_bytes) will
+be reused later.  Status-byte processing by MIDI\_READ\_BYTE ends with the
+step of setting streamed\_bytes.
+
+When MIDI\_READ\_BYTE receives a data byte, it branches to read\_data\_byte,
+which checks the value of running\_status.  If there is none (detected by
+zero value; only values 0x80 to 0xEF are valid for running status in
+effect), then it discards the incoming byte.  Although MIDI allows some
+system messages to have data bytes, the Gracious Host only cares about data
+bytes attached to channel messages.  Then the incoming data byte is written
+into either the first or second byte of streamed\_bytes, depending on
+whether bit~7 of the word is set (indicating that the first data byte was
+not previously received).  After that, there is a check of bit~15.  If
+bit~15 is cleared, then either the status byte only required one data byte
+(so streamed\_bytes was initialized to 0x00FF) or it required two data bytes
+and we just got the second one.  If bit 15~is set, then we are still waiting
+for a second data byte, and MIDI\_READ\_BYTE ends.
+
+If the code proceeds past that point, it means that a complete channel
+message has just been received, consisting of status byte now saved in
+running\_status and one or two data bytes now saved in streamed\_bytes. 
+These values get copied into W1 and W2 to prepare for the fall-through into
+MIDI\_READ\_MESSAGE, and a few more instructions including a call to
+reinit\_streamed\_bytes reset streamed\_bytes to require the same number of
+data bytes again, so that a future message coming in under running status
+will be properly handled.
+
+The MIDI\_READ\_MESSAGE entry point handles a single complete message,
+either as an API for other code to call, or internally when MIDI\_READ\_BYTE
+has detected a complete message.  It takes the (required, not running)
+status byte in the low byte of W1 and any data bytes in W2 (little endian,
+low byte first).  It may trash W0--W8.
+
+MIDI\_READ\_MESSAGE starts by confirming that bit 7 of W1 is set; otherwise
+the status byte is invalid.  It then does some cleanup, clearing the high
+byte of W1 and bits~7 and~15 in W2, so that other code can assume zeros in
+these locations.  It calls find\_mono\_data, which sets W6 to point to some
+per-channel data used by channels that operate in pairs, and goes through a
+jump table indexed by bits 4--6 of the status byte.  Further processing
+depends on the type of message: note off, note on, polyphonic key pressure,
+control change, program change, channel pressure, pitch bend, or system. 
+Some of these, like say ``channel pressure,'' are not really used by the
+Gracious Host; their jump table entries just branch to save\_rstatus, which
+will store the current status byte as a running status but do nothing else. 
+The ``note off'' entry is not a jump but a \insn{clr.b} instruction that
+forces the second data byte (velocity) to zero and then falls through into
+the ``note on'' entry, so that note off is equivalent to zero-velocity note
+on at a very low level in the code.
+
+Handling of system messages starts immediately after the jump table with a
+check for system common messages (status byte 0xF0 to 0xF7), which when
+detected will clear the running\_status variable.  They are otherwise
+ignored.  Then it tests specifically for status byte 0xF8 (system real-time
+``timing clock''), which results in a call to MIDI\_TIMING\_CLOCK; and
+status byte 0xFA (system real-time ``start''), which results in a call to
+MIDI\_TIMING\_START.  Those are APIs to the tempo clock, which are also
+global symbols available to other code.
+
+There follow some subroutines to handle other cases.  The save\_rstatus
+label is called or branched to from several places to save W1 to
+running\_status and then return.  The do\_note label uses a jump table to
+handle note on and note off messages depending on the channel.  Each
+implemented channel has a subroutine named like XXXX\_note for
+handling note on and off messages, and the unimplemented ones just have
+\emph{return} instructions in the jump table.  Some closely-related channels
+share such subroutines, doing their own internal handling of the exact
+channel number.
+
+The do\_cchange subroutine is currently unimplemented, identical to
+save\_rstatus, but it is planned that this will eventually do the handling
+needed for the pitch bend range Registered Parameter Number (RPN), which
+will require some additional state-machine logic because writing to an RPN
+involves multiple MIDI messages.  The do\_pbend subroutine is already
+implemented, though without adjustability of the bend range.  It just
+decodes the low seven bits of each data byte into a single 14-bit unsigned
+number, then offsets it into a 16-bit signed number and stores that in the
+(even or odd, depending on channel number) pitch\_bend\_amt variable.
+
+The helper routine find\_mono\_data is used wherever code needs to access
+the few variables that are split between even and odd channels.  It puts a
+pointer in W6 to the start of the appropriate block based on a channel
+number (MIDI format, Channel~1 is actually value zero) in W1.  The
+additional entry point mono\_data\_from\_recent is just the same, but
+automatically sets W1 from the recent\_channel variable, saving an
+instruction in the caller for this common use case.
+
+There follow several chunks of code that are specific to particular
+channels, entered through the XXXX\_note and XXXX\_bk labels from the
+do\_note and per\_channel\_background jump tables respectively.
+
+\section{Channel 1:  mono CV/gate with velocity and square wave}
+
+Channel~1 handles a single note at a time (monophony), with the pitch and
+velocity values controlling the analog output voltages, and gate and a
+square wave sent to the digital outputs.  Each new note replaces any other
+that might have been in progress at the time.  Although it does not directly
+\emph{use} the tempo clock, it watches for rising edges on the input jacks
+and uses them to \emph{set} the tempo clock for possible use by other
+channels.
+
+The code starting from mono\_sq\_note handles note on messages (including
+note off messages rewritten to note on, velocity zero) for MIDI Channel~1. 
+It starts with a call to use\_comparator\_int, a helper routine located in
+the Channel~12 code that turns on the comparator interrupt, but clears any
+pending comparator interrupts (both in the hardware and in SOFT\_INT\_FLAGS)
+if the channel number has changed since the last call.  Next it makes a call
+to pps\_remap (described below) to connect the left digital jack to GPIO and
+the right to output compare~2, which will be used to generate the square
+wave.
+
+It sets the colour of the front-panel LEDs to green and checks whether
+the velocity of the note is zero, indicating a note off.  Note off is
+handled by a jump to mono\_sq\_noteoff.
+
+Assuming note on (nonzero velocity), the code saves the current data bytes
+to the mono\_data variable for the current channel; W6 was pointed there by
+the message-dispatch code earlier.
+
+The note-on code \emph{toggles} the gate output immediately, but also sets
+the BF\_EAT\_1MS and BF\_RAISE\_GATE1 flags, so that 1--2\,ms later, the
+background processing will \emph{raise} the gate.  These steps handle both
+cases of a possibly-existing previous note.  If no earlier note was in
+progress, then the gate goes up immediately (with the toggle) and when the
+later background processing happens it has no effect.  If there was an
+earlier note in progress, then the gate drops briefly at the start of the
+note, allowing envelopes and such to retrigger, but the background
+processing brings it up again quickly.  The case of an extremely brief note
+that starts and ends within less than 1--2\,ms is not really expected in
+real musical use, but should it occur, the note off processing described
+below will clear the BF\_EAT\_1MS and BF\_RAISE\_GATE1 flags, preventing the
+gate from going up again after the end of the ultra-brief note.
+
+After toggling the gate and setting the flags, the note on code turns on the
+front-panel LEDs, saves the velocity byte, and sends the note number to the
+tune\_dac1\_oc2 subroutine, which applies pitch bend, sends the pitch
+control voltage to the left analog output, starts OC2 oscillating at the
+corresponding frequency, and also checks the input jacks for tempo-timing
+events.  That subroutine is shared with the background processing.
+
+The seven bits of velocity data get converted into 12 bits for the DAC by
+repeating the high five bits to fill in the low ones (basically equivalent
+to multiplication by $4095/127$) and sent to the right-side DAC with a tail
+call to WRITE\_DAC2, concluding the note-on processing.  Note that velocity
+uses uncalibrated DAC output, but the 12-bit DAC should be linear to better
+than the 7-bit precision of MIDI velocity even without calibration
+adjustments.
+
+The background processing code at mono\_sq\_bk will be called once per
+millisecond as long as the most recent channel message was received on
+Channel~1.  It is just an extra instruction to retrieve the saved data bytes
+from the mono\_data variable before starting the shared code at
+tune\_dac1\_oc2.  At that label is a call to calc\_bent\_note, code shared
+with other channels that applies the current pitch bend value to find the
+semitone-and-fraction note number.  It is because of possibly changing pitch
+bend over the course of a note that this channel needs to keep updating the
+pitch CV in the background processing at all.  The calc\_bent\_note
+subroutine is included inline in the source at this point, using a star
+section.
+
+Next is a call to CALC\_OSC\_TUNING from firmware.s, which finds the period
+value to use in the output compare hardware for this MIDI note.  The code
+sets output compare~2 to the calculated period, sends the note number to the
+DAC with NOTENUM\_TO\_DAC1 from calibration.s (which applies the appropriate
+calibration adjustments), and then falls through to
+tempo\_from\_comparators to keep the tempo clock updated.
+
+The tempo\_from\_comparators code is shared with other channels that use the
+digital inputs for updating the tempo clock.  In Channel~1 and any others
+using this code, rising edges on the right digital input are treated as ``tap
+tempo,'' also usable as a 1~PPQN clock input.  The code checks the SI\_CM1
+flag in SOFT\_INT\_FLAGS, which will be set by the comparator ISR on rising
+edges of the right digital input; if this flag is detected, it calls
+MIDI\_TEMPO\_TAP.  Similarly, rising edges on the left digital input set the
+SI\_CM3 flag and this code will call MIDI\_TIMING\_CLOCK, registering the
+edges as a 24~PPQN clock.
+
+The last chunk of code for Channel~1 is mono\_sq\_noteoff, invoked by the
+note on code when it detects zero velocity.  This code first checks whether
+the note number that is ending matches the most recent one to begin, as
+saved in the mono\_data variable.  Without a match, the note off will be
+ignored.
+
+Otherwise, it saves the new data bytes, lowers the gate output, clears the
+BF\_RAISE\_GATE1 flag so that an extremely short note (less than 2\,ms) will
+not re-raise the gate in subsequent background processing, and ends by
+turning off the front-panel LEDs (the left one explicitly, the right one
+with a tail call to right\_led\_off).  Pitch CV and the oscillator output
+remain active even after a note off, to allow for a decay tail after the end
+of the MIDI note.  Even pitch bend can still be updated, because the
+background processing continues as long as Channel~1 had the most recent
+channel message.
+
+\section{Channel 2:  duophonic CV/gate}
+
+Channel~2 handles up to two notes simultaneously (duophony, or two-note
+polyphony), with a gate and a pitch CV for each.  Which two notes play, when
+the MIDI data indicates more than two, is determined by \emph{note
+stealing}:  a new note replaces the oldest currently-playing note.
+
+Pitch bend for Channel~2 affects both notes.
+
+The duophonic\_note subroutine, which handles note on and off messages,
+starts by disabling the comparator interrupt.  The digital input jacks are
+not used in this mode.  Then it calls pps\_remap to set both digital outputs
+to GPIO mode, and configures the front-panel LEDs to be red.  If the
+velocity is zero, it branches to duophonic\_noteoff to handle the note off
+message.
+
+In the note on case, several conditionals examine the duo\_side and
+duo\_data variables to decide on which side to play the new note.  The
+duo\_side variable is a flag, nonzero if the left side was used most
+recently.  The duo\_data variable is a two-entry array where each word
+stores the two data bytes from the note on message, first for the left and
+then for the right.  The conditionals send execution to
+duophonic\_right\_noteon or duophonic\_left\_noteon according to the
+following detailed rules.
+
+\begin{itemize}
+  \item If the left side was most recently used (whether currently in use or
+    not), and the right is free, then go to the right.
+  \item Otherwise, if the left side is free, then go to the left.
+  \item Otherwise, if the right side is free, then go to the right.
+  \item Otherwise, which implies that both sides are currently in use, go to
+    the side that was not most recently used.
+\end{itemize}
+
+The per-side note on code is basically the same for the two sides.  It
+stores the new note's data bytes to the appropriate entry of duo\_side, and
+handles the gate much the same way the monophonic code did: gate toggle
+during the note on handler, and BF\_EAT\_1MS and BF\_RAISE\_GATE1 or \_GATE2
+to make sure the gate is high 1--2\,ms later.  The LED gets turn on, and
+then the code tail calls send\_bent\_to\_dac1 or \_dac2, which are defined
+in the Channel~8/9 code and just call calc\_bent\_note and write the result
+to the DAC.
+
+The background processing for Channel~2 is in duophonic\_bk.  It just calls
+send\_bent\_to\_dac1 and send\_bent\_to\_dac2 with the data bytes from
+duo\_data.
+
+The note off code in duophonic\_noteoff compares the incoming data bytes
+against the stored ones for the two sides to determine which note is ending. 
+``Neither'' is a possibility, if the note now ending was already replaced by
+a more recent note.  Then, on the appropriate side, it stores the updated
+data bytes, lowers the gate voltage, turns off the BF\_RAISE\_GATE1 or
+\_GATE2 flag to handle the case of very short notes, and turns off the LED
+on the appropriate side.
+
+\section{Channels 3 and 4:  quantize to MIDI}
+
+Channels~3 and 4 make the module operate as a quantizer.  Each of the two
+analog inputs is quantized to the nearest note currently playing on the MIDI
+channel, with the quantized voltage sent to the corresponding analog output. 
+The digital outputs send gates:  high as long as any notes are held, but
+dropping to zero when there are no held notes and for about a millisecond
+each time the quantized output voltage changes.
+
+The difference between the two channels is that Channel~3 quantizes to
+literally the nearest currently-playing MIDI note number.  Channel~4
+quantizes to the nearest note that is currently playing \emph{in any
+octave}.  For example, if the currently-playing MIDI notes are 60 and 69
+(Middle~C and the~A above it) and the input voltage is 0.50V (equivalent to
+MIDI note 42), then Channel~3 will quantize to 2.00V (MIDI note 60, the
+nearest note that is literally playing in the MIDI data) but Channel~4 will
+quantize to 0.75V (MIDI note 45, which is an~A like note~69 and closer to
+note~42 than the nearest~C would be).  Both these channels are handled by
+substantially the same code, with a few conditional sections to separate the
+cases.
+
+As of this writing, pitch bend in the quantizer channels is applied after
+quantization and regardless of the quantization result.  It is possible that
+some future version of the firmware may attempt to do something more useful
+with pitch bend.
+
+Note on and off are not separated.  The code for either message, at
+quantize\_note, turns off the comparator interrupt (because the input jacks
+are being used in analog mode) and sets the PPS mapping for the output jacks
+to GPIO with a call to pps\_remap.  Then it does a division on the incoming
+note number to find the octave ($\lfloor N/12 \rfloor$, the integer quotient
+from the division) and the note within the octave ($N \bmod 12$, the remainder
+from the division).
+
+The notes currently in playing the quantizer channels are recorded in the
+quant\_notes array.  Both channels share this array, and it is structured as
+a 16-bit word per octave with the notes in the octave indexing the bit
+positions, four bits unused at the top of each word.  The note on and off
+code uses the quotient and remainder to find the appropriate bit, and
+updates it for whether this was a note on or off message.  Then it ends.
+
+The quantize\_notenum subroutine does most of the work of quantization.
+The background processing will call it once for each side.  This code
+expects the unquantized input note, in semitone and fraction format, in W0,
+and the currently-playing quantized note in W4.
+
+It starts by comparing W0 to W4 to see in which direction it is likely to be
+adjusting the note.  Depending on the comparison result, W1 is set to 0x0080
+plus or minus the value QUANT\_HYSTERESIS set in config.inc, to represent
+the boundary between semitones.  This \emph{hysteresis} mechanism is
+intended to prevent noise in the input, with an input voltage near a
+quantization boundary, from causing a lot of unintended very fast notes. 
+Once the measured voltage has crossed a quantization boundary, the boundary
+effectively moves some distance in the opposite direction, so the voltage
+must change by the width of the hysteresis band again before it can cross
+the boundary in the opposite direction.  The value of QUANT\_HYSTERESIS for
+production firmware is 0x50, corresponding to a 62.5\textcent{} hysteresis
+band or about 5\,mV, which is close to the ADC's resolution after
+calibration.  The check in the code is for the direction of adjustment
+\emph{to the nearest semitone} rather than \emph{to the actual quantization
+result} (which is still unknown at this point), but moving the quantization
+boundary in this way actually only has an effect when those two directions
+coincide.
+
+Next, the code in quantize\_notenum computes the bitwise OR of the words in
+the array.  This result is a bit mask of which notes are playing regardless
+of octave (pitch classes, to use the music-theory term), relevant for
+Channel~4 although it is computed here unconditionally.  There follows a
+loop over the note numbers from 0 to 127, to find the note number closest
+(by absolute value of the difference in note numbers) to the input note,
+that is flagged as currently playing.  For Channel~3, this loop looks at the
+words of the quant\_notes array.  For Channel~4, it goes through the motions
+of computing the index into the array, but then short-circuit code
+replaces the word read from the array with the already-computed OR value, so
+that a bit set in any octave in the array will appear to the quantization
+loop as if it had been set in every octave.  The quantization result
+defaults to note number~0 if no note was playing at all.
+
+The quantize\_notenum subroutine ends with a tail call to
+mono\_data\_from\_recent to get a pointer to per-channel data (specifically,
+pitch bend) into W6.  That is needed in the code that calls quantize\_notenum
+and this is a convenient, space-saving place to do it.
+
+At set\_quant\_led is another helper subroutine, for setting the LED
+according to the quantization result.  It mostly uses data left in the
+working registers by quantize\_notenum, but is separated so that the caller
+can pass in the LED bit number (7 or 9) for the current side via W4.  This
+code also sets the gate output voltage.
+
+The logic for set\_quant\_led first sets the LED colour to red if the input
+and output voltage are in the same semitone.  Then it sets the LED's lit or
+unlit status:  lit if some note was found by the nearest-note search
+(indicating at least one note is currently playing in the MIDI input), unlit
+otherwise.  This condition separates the code into a note on and a note off
+case.
+
+The note on and note off cases are treated much like note on and note off in
+other channels.  For note on, the gate gets toggled, and then BF\_EAT\_1MS
+and the appropriate BF\_RAISE flag are set to request that the gate go high
+in the background processing after a short delay.  For note off, the gate is
+lowered and the BF\_RAISE flag cleared.  That ends set\_quant\_led.
+
+The last chunk of code for the quantizer channels is the background
+processing of quantize\_bk, which just repeats a few subroutine calls for
+the two channels: ADC1\_TO\_NOTENUM, quantize\_notenum, set\_quant\_led,
+send\_bent\_to\_dac1, and then \emph{mutatis mutandis} for the other side.
+
+\section{Channel 5:  arpeggiate up and down}
+
+Channel~5 arpeggiates the MIDI input notes, in increasing and decreasing
+order of pitch on the two sides.  Much of this code is shared with the other
+two arpeggiator channels, numbered~6 and~7.  It accepts tempo timing on the
+input jacks to set the tempo clock, or follows the tempo clock setting from
+some other source (MIDI timing messages or typing keyboard tap tempo). 
+Arpeggiation is at one note per MIDI ``quarter note'' time, though of course
+the clock given to the module need not really be at the rate of quarter
+notes in the musical context.  It plays a new note at the start of each
+beat, independently of the timing of the MIDI note on messages; a note on
+not close to the tempo clock will result in a delay before the note starts
+playing on the beat, and the tempo clock must be running at all for the
+arpeggiator to produce output notes.
+
+The analog outputs provide the pitch CVs, and the digital outputs provide a
+gate and a trigger.  The gate is high for the first 7/8 of the beat time and
+low for the rest.  The left LED lights green when any notes are held, and
+the right LED follows the gate, lighting red for the first 7/8 of each
+quarter-note beat.  Pitch bend is applied when each note starts playing, not
+continuously updated.
+
+The arpeggiator channels store currently-playing notes in arp\_notes, which
+is basically an array-based stack data structure of one byte per note, the
+variable arp\_note\_count recording how many notes are currently stored. 
+The array is kept in sorted order by pitch for Channel~5; in order of note
+entry for Channels~6 and~7.  The note on and note off handler's main
+function is just to maintain arp\_notes, with the rest of the arpeggiation
+logic handled by MIDI background processing.
+
+A helper subroutine called arp\_note\_top does basic setup needed at the
+start of the note on and off handler for all three arpeggiator channels. 
+The arp\_updown\_note code starts with an \insn{rcall} to this.  It calls
+use\_comparator\_int to set up the input jacks for controlling the tempo
+clock, and pps\_remap to set the left digital output to GPIO (for the gate)
+and the right to be driven by output compare unit~2 (for the trigger).  Then
+it sets the colours for the front-panel LEDs (green on the left, red on the
+right), initializes W3 and W4 for a loop over arp\_notes that the calling
+code will do, and compares the velocity byte against zero for the note off
+test in the calling code.
+
+The calling code at arp\_updown\_note, immediately
+after the \insn{rcall} arp\_note\_top, uses a \insn{bra eq} instruction to
+detect the note off case, which will be handled by arp\_updown\_noteoff. 
+The note on case starts with a call to arp\_search\_push (which is in the
+in-order arpeggiator section of the source file) to search arp\_notes and
+detect whether the note we just saw is already recorded there.  This helper
+returns NZ status (the CPU's Z flag is cleared) if the note is found;
+otherwise, it returns Z status, turns on the left LED, and pushes the new
+note onto arp\_notes.  The calling code in arp\_updown\_note just returns,
+effectively ignoring the note on message, if it sees NZ status indicating
+the note was already in arp\_notes.
+
+On a real new note, not previously recorded, arp\_updown\_note maintains the
+sorted order of the array by doing one pass of bubble sorting; that is
+linear time to make the array sorted given that it already was sorted except
+for the newly-added element at the end.  (Optimal time for a
+comparison-based sorted insert is $O(\log n)$ but then we couldn't use a
+straightforward array, the lower-order overhead of a more complicated
+algorithm would make any real speed advantage iffy on this problem size, and
+memory is in shorter supply than time here anyway.) The loop examines each
+pair of two consecutive entries, starting at the top of the array and moving
+toward the bottom with overlap, swapping each pair found to be out of order
+and terminating when it finds a pair in order.  The newly-added element will
+be swapped to an earlier index by every comparison until it is in its proper
+sorted place.  Handling of note on ends after this loop.
+
+The note off code starts by searching arp\_notes for the note number that
+just ended; it just ignores the MIDI message if that note was not found for
+some reason.  It pops the stack and uses the note just removed to overwrite
+the place where the input note was found.  That has the effect of removing
+the note off message's note from the array, while correctly handling the
+case of removing the last note (because it will be just overwriting its own
+former location, now no longer within the valid range of array indices).  It
+turns off the left LED if this operation left the array empty.  Then it does
+another linear-time single pass of bubble sorting to bring the array back
+into sorted order, should this operation have disrupted that property.
+
+Background processing for the up/down arpeggiator is straightforward, but
+the source code is complicated a little by star section subroutines used to
+share code with the other arpeggiator channels.  The breakdown into
+subroutines is along the boundaries of which literal instruction sequences
+could be shared, rather than on the basis of their higher-level purposes.
+
+First there is a call to arp\_bk\_top1, which handles most of the things
+needed at the start of every arpeggiator background handler.  This call is
+inside a TRY/TRIED block with the handler set to GOTO\_W4\_INSTRUCTION so
+that the subroutine can, if necessary, abort the outer, calling context in a
+concise way.  Inside the star section, it starts with a call to
+tempo\_from\_comparators which updates the tempo clock for any recent events
+(1~PPQN or 24~PPQN clock edges) on the input jacks.  Then it checks whether
+there are any notes currently in arp\_notes and if there are none, it THROWs
+to arp\_reset, which resets the arp\_index variable (position in the
+sequence) to zero, clears the beat flag (SI\_BEAT in SOFT\_INT\_FLAGS),
+lowers the gate, turns off the right LED, and terminates arp\_updown\_bk (or
+the other \_bk handler when called from some other channel).
+
+Next, arp\_bk\_top1 finds the value of TEMPO\_CLOCK modulo 24; it fetches
+that variable and then subtracts 24 as many times as necessary (at most two
+may be necessary) to bring it into the range 0--23.  This number indicates
+where we currently are during the quarter-note beat.  When it is equal to
+21, 22, or 23, it means we are currently in the 1/8 beat silence between
+gate pulses.  Then the code THROWS to arp\_beat\_end, which lowers the gate
+voltage, turns off the right LED, and terminates the per-channel \_bk
+handler.
+
+The next check is of the SI\_BEAT flag in SOFT\_INT\_FLAGS, which is set by
+the tempo timing subsystem at the start of each beat.  If this flag is not
+set, then we are in the middle of a note, assumed to have already been
+handled when it started, and no more background processing is necessary;
+arp\_bk\_top1 THROWs to RETURN\_INSN, terminating the caller.
+
+The remaining case, and the only one in which arp\_bk\_top1 will return
+normally instead of via THROW, is when SI\_BEAT was found to be set, with at
+least one MIDI note being played.  Then, it will be necessary for the
+arpeggiator to choose and play a note.  The code clears SI\_BEAT, raises the
+gate (no toggle and delayed raise needed because the timing already
+guarantees a silence between notes), turns on the right-side LED, and pokes
+output compare unit~2 to start a trigger pulse on the trigger output.  Then
+it returns.
+
+Next, arp\_updown\_bk calls arp\_bk\_top2, star section code shared with
+Channel~6 whose main function is to choose the left-side note for the
+arpeggiation.  The high byte of the arp\_index variable is an index into
+arp\_notes for the left side.  The code here calls a nested star section
+subroutine named reduce\_and\_find\_note to keep the index within range
+given that the array length may have changed since the last update.  Then it
+increments the index and calls send\_bent\_to\_dac1 to set the left-side
+pitch CV, with pitch bend.
+
+After the return from arp\_bk\_top2, arp\_updown\_bk does a little bit of
+processing unique to Channel~5.  It decrements the right-side note index
+(low byte of arp\_index), with another call to reduce\_and\_find\_note to
+keep it in range, and ends with a tail call to send\_bent\_to\_dac2.
+
+A detail to note in the up/down arpeggiator code is that it increments the
+index for the left side \emph{after} using it, but decrements the index for
+the right side \emph{before} using it.  Both indices are repeatedly reset to
+zero (start of the zero-based array) as long as there are no MIDI notes
+played.  As a consequence, when the user starts playing a chord (two or more
+notes) immediately before a beat, the first note in the sequence the
+arpeggiator plays will be the lowest one on the left, going up, and the
+highest one on the right, going down.
+
+\section{Channel 6:  arpeggiate in order}
+
+The arp\_inord\_note subroutine handles note on and off messages for both
+Channels~6 and~7.  It maintains the arp\_notes array in the order the notes
+were entered, which is sufficient to support both in-order and random
+arpeggiation, with different background processing code.
+
+The arp\_inord\_note code is basically just arp\_updown\_note without the
+sorting.  It starts with a call to arp\_note\_top, the shared code that
+turns on comparator interrupts, sets the LED colours, and checks for a note
+off message.  Then it either branches to arp\_inord\_noteoff or continues on
+into arp\_search\_push, which pushes the new note at the end of the array
+(and was called as a subroutine in the more complicated arp\_updown\_note
+code).
+
+In arp\_inord\_noteoff, the code searches the array of currently-playing
+notes for one that matches the note in the note off message, aborting if it
+is not found.  Then it shifts any subsequent notes down to delete that note
+while preserving the relative order of the others.  It turns the left LED
+off if this procedure leaves the stack empty, and that completes the note
+off processing.
+
+The arp\_inord\_bk subroutine handles background processing for the in-order
+arpeggiator.  It is specific to this channel, but shares much code with
+arp\_updown\_bk.  It starts by calling arp\_bk\_top1 inside a TRY/TRIED
+block to update the tempo clock from the input jacks, stop processing if
+there are no notes played, and handle the right LED, gate, and trigger. 
+Then it calls arp\_bk\_top2 to update the left-side analog output, which
+steps sequentially through the contents of arp\_notes; that is the same
+logic as in Channel~5 but with different result because of the different
+ordering of the array.
+
+After that it only remains to handle the right-side analog output, which
+also steps through arp\_notes but one step ahead of the left.  That is
+accomplished by taking the left-side index, which was incremented
+as a side effect of the left-side processing, and passing it again into
+readuce\_and\_find\_note again to get the next note.  Then arp\_inord\_bk
+ends with a tail call to send\_bent\_to\_dac2 to set the right-side analog
+output voltage.
+
+\section{Channel 7:  arpeggiate randomly}
+
+Channel~7 uses the same handler for note on and off as Channel~6.  That
+code maintains the arp\_notes array in the order the notes were entered. 
+The unique processing required for random arpeggiation is all implemented in
+the background handler, arp\_random\_bk.  It starts by calling
+arp\_bk\_top1, the shared code for all the arpeggiator background handlers
+that takes care of timing, the gate and trigger outputs, and the beat LED. 
+That code returns normally (instead of THROWing and terminating
+arp\_random\_bk) only at the start of a beat when it is necessary to choose
+a new note, with at least one MIDI note currently playing.
+
+The new note is chosen according to the following rules, depending on how
+many notes are currently playing.
+\begin{itemize}
+  \item The note on the right is a uniform random choice from all
+    the currently-plaing MIDI notes.  It could be any of these, including a
+    repetition of its previous value.
+  \item The note on the left is always one of the currently-playing MIDI
+    notes.  The only one, if there is only one.
+  \item If there are at least two currently-playing MIDI notes, then the
+    left note avoids the choice made on the right.
+  \item If there are at least three currently-playing MIDI notes, then the
+    left note also avoids its own previous value.
+  \item The left note is a uniform random choice from whatever options
+    remain.
+\end{itemize}
+
+The random choices use the PRNG API from utils.s.  The code is fairly
+straightforward.  It calls PRNG\_READ\_INT to get selections for the right
+and left, then uses a few conditionals to check whether the left hit a note
+it was trying to avoid, with enough choices available for avoiding it to be
+possible.  In such cases, it loops back to get a new left-side selection and
+repeats until a suitable choice is found.  Then it sends both selections
+(which are indices into arp\_notes) through reduce\_and\_find\_note and then
+to the DACs.
+
+\section{Channels 8 and 9:  mono CV/gate on one side}
+
+Channels~8 and~9 are a cooperating pair, sharing the same code for note
+messages and background processing.  Each sends pitch and gate CV to the
+outputs on one side of the module.
+
+The note on and off handler in one\_side\_note closely resembles the
+monophonic note code from Channel~1.  It disables comparator interrupts,
+configures the hardware for GPIO output on both sides, and sets the LED
+colours to green.  Notes on either of Channels~8 and~9 will set the hardware
+configuration for both sides because these channels are intended to work
+together and leaving one side of the module in the configuration of some
+unrelated channel would not be useful.  Also, the background processing for
+either of these channels updates both of them, necessarily so because
+background processing is selected on the basis of the one most recently used
+channel.
+
+If the incoming message was note off, there is a branch to
+one\_side\_noteoff.  Otherwise the data bytes are stored (in a set of
+variables that depends on the low bit of the channel number, so~8 and~9 are
+kept separate); the gate on the appropriate side is toggled and the LED
+turned on; and the BF\_EAT\_1MS and BF\_RAISE\_GATE1 or \_GATE2 flags
+are set, to handle the gate in the usual way, either going high on a new
+note or briefly going low and then high.  The note number is processed by
+calc\_bent\_note and sent to the DAC.
+
+The background processing in one\_side\_bk just re-calculates the pitch-bent
+note and sends it to the DAC.  The small difference from similar background
+processing in other channels is that here, the operation repeats on both the
+left and the right.
+
+The one\_side\_noteoff code also resembles that in other channels, save for
+the conditional to make it work on the appropriate side.  It checks whether
+the note in the note off message matches the one currently playing, which
+might not be the case if a new note ``stole'' an old note; the end of the
+old note can then be ignored.  If the note ending really is the current one,
+then it updates the data bytes, branches according to which side is being
+handled, and then lowers the gate voltage on that side, turns off the
+background flag that might raise it later, and turns off the LED.
+
+\section{Channel 10:  drum triggers}
+
+Notes in Channel~10 send trigger pulses on the output jacks, depending on
+the note number.  As discussed in the UBM, each note number maps to one of
+the four jacks according to a scheme that guarantees two properties.  Any
+four consecutive MIDI note numbers starting with one that divides evenly by
+4 (such as $\{0,1,2,3\}$ or $\{60,61,62,63\}$) will map to distinct jacks;
+and any four MIDI note numbers spaced two apart, such as $\{0,2,4,6\}$ or
+$\{65,67,69,71\}$, will map to distinct jacks.  The point is to make it easy
+for a user to find four notes that will work, on their chosen MIDI
+controller, without actually needing to support reconfiguration of the note
+mapping.
+
+The beginning of the note-handling code in drum\_trig\_note is moved into
+the star section subroutine drum\_note\_start so that it can be reused by
+Channel~11.  This code remaps the digital outputs to OC1 and OC2 to allow
+for pulse output (depending on the value of W5; Channel~11 will pass in a
+different value to configure them as GPIO); turns off comparator interrupts;
+and does the note number to output jack mapping with a few bit-twiddling
+instructions.  It checks whether this was a note on or off message (result
+going to the CPU's zero flag), and updates a bit in drum\_notes that
+records the on or off status of each of the four equivalence classes of
+notes.
+
+After the return of drum\_note\_start, the calling code does a conditional
+branch to drum\_leds on the zero flag.  For note off messages, updating the
+LEDs is the last thing to do.  For note on messages, it finds the output
+compare module relevant to the new note, and triggers it to generate a
+960\,$\mu$s pulse.  The pulse length of 960\,$\mu$s was chosen so that two
+such pulses 1\,ms apart, which is normally the closest interval at which
+separate notes can be sent because of the USB 1\,ms clock, will still be
+distinguishable.
+
+Output compare units~1 and~2 drive the output jacks, through PPS mapping and
+the output buffer amplifiers but without requiring further CPU intervention. 
+Units~3 and~4 are not mapped to microcontroller pins and the CPU needs to be
+involved further in sending pulses to the DACs with the timing set by the
+output compares.  So in case of note numbers associated with the analog
+output jacks, after triggering the associated output compare, the CPU makes
+a call to WRITE\_DAC1 or WRITE\_DAC2 as appropriate, with the value 0x0FFF
+corresponding to about $+$5.5V.
+
+After triggering the output compare and
+possibly writing to the DAC, the code continues into drum\_leds, which ends
+note message processing by setting the colour and on/off status of each
+front-panel LED.  The left LED is red if note class~2 is active, green if
+class~0 and not~2, off otherwise.  The right LED is red if note class~3 is
+active, green if class~1 and not~3, off otherwise.
+
+The drum channels have no background processing done by \_bk handlers; their
+entries in the per\_channel\_background jump table are just \insn{return}
+instructions.  Lowering the analog output voltage at the end of a pulse is
+done by the ISRs for output compare units~3 and~4 when appropriate.
+
+\section{Channel 11:  drum gates}
+
+Channel~11 is similar in function to Channel~10, with MIDI note numbers
+mapping to the four output jacks.  The difference is that Channel~11 sends
+gate pulses, high as long as the note in question is playing, rather than
+trigger pulses.
+
+The note on and off code in drum\_gate\_note starts with a call to
+drum\_note\_start, which sets the digital outputs to GPIO mode, disables
+comparator interrupts, does the note number mapping, updates the note state
+in drum\_notes, and tests whether the incoming message was a note off
+message.  The rest of drum\_gate\_note is responsible for raising or
+lowering the gate voltage on the appropriate output jack, and then ends with
+a branch to drum\_leds, from Channel~10, to set the front-panel LEDs.
+
+The code uses a somewhat complicated jump table intended to save program
+memory space.  A few instructions prepare for the jump by putting 0x0FFF
+into W0 for note on and zeroing W0 for note off.  Note on messages also
+offset the jump index by four entries, so the table ends up containing six
+entries:
+\begin{itemize}
+  \item note class 0 off (left digital output goes low);
+  \item note class 1 off (right digital output goes low);
+  \item note class 2 on or off (write W0 to DAC1);
+  \item note class 3 on or off (write W0 to DAC2);
+  \item note class 0 on (left digital output goes high); and
+  \item note class 1 on (right digital output goes high).
+\end{itemize}
+
+Like Channel~10, Channel~11 has no background processing done by a \_bk
+handler.
+
+\section{Channel 12:  mono with clock out}
+
+Channel~12 handles monophonic notes with pitch and gate CV on the module's
+analog outputs and 1~PPQN and 24~PPQN clock pulses, controlled by the tempo
+clock, on the digital outputs.  It can receive timing in 1~PPQN or 24~PPQN
+format on the input jacks, or use timing from MIDI messages or the typing
+keyboard tap tempo feature.  Both LEDs light when a note is active,
+basically in green, but the right one also blinks red on the beat,
+overriding the green.
+
+The code for this channel includes the helper subroutine
+use\_comparator\_int, which is also used by other channels that accept
+timing on the input jacks.  It enables PIC24 interrupts for the comparator
+hardware, also clearing any old comparator interrupt request status if the
+channel number has changed.
+
+The note handler for Channel~12 starts by calling use\_comparator\_int. 
+Then it remaps the digital output jacks to output compare units~1 and~2, for
+sending trigger pulses.  Then it sets the left LED to be green and checks
+for whether this was a note off message, branching to cv\_clock\_noteoff in
+that case.
+
+The gate logic is similar to that of other channels:  toggle at note on and
+then raise 1--2\,ms later, so that a stolen note will result in a brief gate
+drop to retrigger envelopes and similar.  But because this channel uses the
+DAC for the gate output, it cannot use a plain SFR bit toggle to change the
+gate state.  Instead it checks the old data bytes to determine whether the
+gate was previously high, and sends 0x0000 or 0x0FFF to the DAC accordingly. 
+Then it sets BF\_EAT\_1MS and BF\_RAISE\_CV2 in background\_flags to ensure
+that the gate voltage will be high soon even if it was just lowered; turns
+on both LEDs; calls right\_led\_beat\_colour to handle the double duty of
+the right LED; and ends with a tail call to send\_bent\_to\_dac1 to apply
+pitch bend and set the pitch output voltage.
+
+The note off code in cv\_clock\_noteoff is much like other channels' note
+off code.  It checks to make sure the note ending now is the same one
+currently playing, otherwise ignoring the note off.  It stores the new data
+bytes.  Then it lowers the gate by sending a zero to DAC2, clears
+BF\_RAISE\_CV2, turns off the left LED, and fall through into
+right\_led\_beat\_state to set the state of the right LED.
+
+The code at right\_led\_beat\_colour sets the
+colour of the right LED to red if the low bit of BEAT\_FLASH is set, green
+if not.  This code does not actually turn the LED on or off.  The earlier
+label right\_led\_beat\_state does that (on when the low bit of BEAT\_FLASH
+is set, off otherwise) before falling through into right\_led\_beat\_colour. 
+So note on, which turns on both LEDs before calling
+right\_led\_beat\_colour, will leave the right LED turned on and either
+green or red, whereas note off, which uses right\_led\_beat\_state, will
+leave the LED either turned off, or turned on and red.
+
+The background processing code in cv\_clock\_bk is mostly concerned with
+sending the clock pulses.  It calls right\_led\_beat\_colour or
+right\_led\_beat\_state depending on whether there is a note currently
+playing, and send\_bent\_to\_dac1 to update the pitch CV for possible pitch
+bend.  Then it calls tempo\_from\_comparators, the shared code to update the
+tempo clock from the digital inputs.
+
+The Timer~4/5 ISR will set SI\_BEAT in SOFT\_INT\_FLAGS at the start of
+each beat.  The code here checks for that.  If found, it clears the flag,
+and triggers OC2 to send a 960\,$\mu$s pulse on the right digital output
+jack.  Before terminating it sets the BF\_EAT\_1MS flag, which will delay
+the \emph{next} call to this background processing handler by an extra
+millisecond.
+
+When SI\_BEAT was not detected, the background code compares TEMPO\_CLOCK
+(which is a soft timer advancing at 24 counts per beat) against the variable
+pulsed\_tick, which records the value of TEMPO\_CLOCK last time this code
+checked it.  If they do not match, then a new tick has occurred and it
+triggers OC2 to send a 960\,$\mu$s pulse on the left digital output.
+
+The beat detection logic is arranged to make sure that the 1~PPQN pulse will
+happen unambiguously \emph{before} the 24~PPQN pulse at the start of the
+beat.  At the start of the beat, both SI\_BEAT and TEMPO\_CLOCK are updated,
+more or less simultaneously.  The first call to cv\_clock\_bk detects the
+SI\_BEAT flag, sends the 1~PPQN pulse, and having detected SI\_BEAT it does
+not check TEMPO\_CLOCK nor update pulsed\_tick.  It sets BF\_EAT\_1MS to
+make sure the next call to cv\_clock\_bk will not happen immediately.  When
+that next call does happen, probably about 2\,ms later, it will check
+TEMPO\_CLOCK, detect the new tick there, and send the 24~PPQN pulse.
+
+As with other pulses sent by the Gracious Host firmware, the reason for
+making these pulses 960\,$\mu$s was a desire to make them approximately 1\,ms
+but still have two successive pulses distinguishable if they are sent
+exactly 1\,ms apart.
+
+\section{PPS mapping}
+
+Different MIDI channels require different hardware configurations for the
+digital output jacks, both with respect to PPS mappings and the output
+compare peripherals that may be behind those mappings.  The MIDI backend
+includes a unified API for reconfiguring these jacks, and note on/off
+handlers generally begin with a call to the pps\_remap subroutine to set up
+the configuration used by the channel in question.  Although the name refers
+to PPS, this API also handles output compare configuration.
+
+The pps\_status variable records the current status of PPS mapping and
+output compare configuration; right side (RP8 and OC2) in the low byte and
+left side (RP14 and OC1) in the high byte.  The values for each byte may be
+1 for GPIO, 2 for output compare configured to send 960\,$\mu$s pulses, or 3
+for output compare configured to send a square wave.  A byte value of zero
+indicates the current state of the side is unknown or not yet set up, which
+will necessitate configuring it unconditionally.  Otherwise, pps\_remap
+will detect when the requested configuration matches the existing one
+and skip making any changes.
+
+The pps\_remap call takes the desired new value for the pps\_status variable
+in W5.  It trashes W0, W3, W4, and W5, but preserves W1 and W2 (which are
+often needed by the note handlers).  It checks whether the old and new
+values for the entire variable match and aborts if they do; otherwise,
+reconfiguring something will be necessary, so it unlocks the PPS mapping
+registers.  The remainder of the code is a fairly straightforward sequence
+of conditionals that compare the bytes of the old and new values, and do the
+requested configuration changes wherever they differ.  Then it saves the new
+value for pps\_status and locks the PPS registers up again.
+
+\section{Tempo timing}
+
+Throughout MIDI operation, the backend keeps track of the quarter-note beat. 
+This timing signal may be driven by MIDI messages (the Timing Clock and
+Start messages, status bytes 0xF8 and 0xFA respectively); from the input
+jacks when using channels that support such input; or from the typing
+keyboard driver's tap tempo key.  The tempo clock is used by the
+arpeggiators to time new notes, and provided as 1~PPQN and 24~PPQN output
+signals when running in Channel~12.
+
+The API for the tempo clock involves entry points MIDI\_TIMING\_CLOCK,
+MIDI\_TIMING\_START, and MIDI\_TEMPO\_TAP, as well as global variables
+TEMPO\_CLOCK and BEAT\_FLASH and the SI\_BEAT flag in SOFT\_INT\_FLAGS.
+
+TEMPO\_CLOCK records the current position within the beat, and some implicit
+information about tap tempo.  This variable starts at zero after the first
+tap of a tap-tempo measurement, and increments at a rate of 24~PPQN.  At the
+start of the second beat it will have value 24, but instead of resetting at
+24 it continues counting, through 48 (start of third beat) and up to 71,
+after which it resets not to 0 but to 48.  In normal operation when not
+measuring tempo taps, it cycles from 48 to 71.  Each count of TEMPO\_CLOCK
+corresponds to a reset of the 32-bit Timer~4/5, which has its period
+adjusted to suit the desired tempo.  The SI\_BEAT flag gets set at the start
+of each beat (when TEMPO\_CLOCK assumes the value 0, 24, or 48) so that
+per-channel code can recognize new beats if desired.
+
+BEAT\_FLASH records new beats in a different format relevant to anything
+that flashes an LED on the beat: it gets the value 0x5001 at the start of
+each beat, and then the high byte counts down at one count per millisecond
+until it reaches zero, while the low byte remains 0x01 until the high byte
+is zero and then becomes zero also.  So this variable provides a convenient
+way of determining whether we are in the first 80\,ms of a beat,
+independent of how fast or slow the beat is.  Channel~12 flashes one of the
+Gracious Host's front-panel LEDs according to BEAT\_FLASH, and the typing
+keyboard driver flashes the Scroll Lock LED on the keyboard.
+
+The code starts with the helper subroutine set\_beat\_flag, called in
+multiple places that reset to the start of a beat.  It sets SI\_BEAT and
+initializes BEAT\_FLASH.  Next are the three main API calls. 
+
+MIDI\_TIMING\_CLOCK is intended to correspond directly to the MIDI Timing
+Clock message.  A rising edge on a 24~PPQN clock input, in modes that
+provide them, also triggers this call.  It advances the clock by 1/24 of a
+beat, as well as possibly adding 24 or 48 to force TEMPO\_CLOCK into the
+range 48--71, which has the effect of clearing any in-progress tap tempo
+command.  It stops Timer~4/5 (by setting it to maximum period, which causes
+the background processing to prevent the timer from ever resetting).  The
+concept here is that when the user uses a 24~PPQN clock, from MIDI or a clock
+signal on the input jack, that will replace any other source for the rate of
+the clock.
+
+When using 24~PPQN timing it is still necessary to know when a beat starts,
+that is, which of the 24 pulses in a beat corresponds to the start of the
+beat, and the MIDI\_TIMING\_START subroutine serves that purpose.  The MIDI
+Start message causes a call to this subroutine, even though Start is
+officially defined as telling a sequencer to start a \emph{song} rather than
+a \emph{beat}.  The start of a song is assumed to also start a beat.  So
+this call forces TEMPO\_CLOCK to the value 47, turning off tap tempo and
+Timer~4/5 and implying that the next MIDI\_TIMING\_CLOCK call will be the
+start of a beat (pushing TEMPO\_CLOCK to 48).  It is not expected that the
+module will receive a Start message at the start of every beat; only that
+whenever it does receive one, the next Timing Clock message will be the
+start of a beat.  After that it will stay synchronized with a new beat
+starting on every 24th Timing Clock message.
+
+The MIDI\_TEMPO\_TAP call is also expected to happen at the start of a beat,
+but it is more complicated.  Once a tempo is established with
+MIDI\_TEMPO\_TAP, the module will do its own timing, automatically
+scheduling additional beats according to its best guess of the time between
+recent calls.  So whereas MIDI\_TIMING\_START only marks the start of a
+beat, and still depends on MIDI\_TIMING\_CLOCK to advance the clock,
+MIDI\_TEMPO\_TAP does not require any other timing source.  In order to be
+useful all by itself, calls to MIDI\_TEMPO\_TAP must occur in bursts of at
+least two consecutive beats; but if both MIDI\_TEMPO\_TAP and
+MIDI\_TIMING\_CLOCK are used, the much more frequent MIDI\_TIMING\_CLOCK
+calls will constantly turn off tap tempo detection, leaving MIDI\_TEMPO\_TAP
+to serve as just a start-of-beat synchronization signal.  The tap tempo key
+(keypad insert) in the typing keyboard driver invokes this call.  Rising
+edges on the 1~PPQN input also invoke this call in channel modes that have
+such an input, allowing for three operating modes of synchronizing to the
+input jacks.
+
+\begin{itemize}
+  \item With input on the 1~PPQN jack only:  the module follows that jack's
+    timing, attempting to track the tempo as it may change.
+  \item With input on the 24~PPQN jack only:  the module follows the timing
+    of the 24~PPQN clock, with nothing to synchronize the start of a beat
+    (unless some other source, like MIDI or the typing keyboard, provides
+    start of beat synchronization).
+  \item With input on both jacks:  the 1~PPQN input serves as reset (start of
+    bear) while the 24~PPQN input controls the tempo.
+\end{itemize}
+
+The code for MIDI\_TEMPO\_TAP starts by capturing the current value of
+TEMPO\_CLOCK and Timer~4/5, which measures time within the current 1/24 beat
+period at an accuracy of 500\,$\mu$s (1:8 division from the processor
+instruction clock).  The timer gets reset to a value of one count after having
+been stopped for eight instructions while we read the value, so it is being
+read and reset at the same instant, to within the hardware's available
+accuracy.  The code calls set\_beat\_flag because a tempo tap always
+corresponds to the start of a beat.
+
+Then it looks at the captured TEMPO\_CLK value.  Tempo taps in general reset
+this variable to zero.  If the captured value is 32 or above, it means that,
+according to the tempo measured in two or more previous taps, we have
+now received a tap more than one and a half beats after the last one.  That
+means the taps are coming in too irregularly to get a good measurement; so
+it stops Timer~4/5 and returns.  This new off-beat tap will become the first
+tap of the next attempted measurement.
+
+Otherwise, we have two taps from which we will attempt to infer the tempo. 
+The code takes the period of Timer~4/5 multiplied by TEMPO\_CLOCK, to
+represent the time measured in previous resets of Timer~4/5 since the start
+of the beat, and adds the captured value of Timer~4/5 from the current tick. 
+The sum is a 32-bit number representing the number of 500\,$\mu$s counts
+since the last tempo tap.  This is divided by 24 to get the target value for
+Timer~4/5's period.
+
+If the time between the last two tempo taps has changed significantly from
+the earlier tempo estimate, then we want to use that target period value
+directly.  The user has selected a completely new tempo.  On the other hand,
+if a new tempo tap has come in about when we were expecting one anyway
+(because the user has entered three or more taps at a reasonably consistent
+tempo) then we want to \emph{average} it with the existing tempo, to allow
+for finer control than would be possible with just two taps.  Note that the
+typing keyboard driver in particular has a timing granularity of typically
+10\,ms (set by the limitations of USB interrupt endpoints), so using just
+two taps might not give an accurate result.  At 120~BPM, $\pm$10\,ms in the
+beat timing is about $\pm$2.5~BPM, enough to be a perceptible difference;
+but the average over three or more taps will be more accurate.
+
+If the captured value of TEMPO\_CLOCK is in the ranges 0--21 or 26--31,
+then the timing measured between this tap and the last is used directly; the
+new tap was not close enough to the old beat for averaging to be reliable. 
+If the captured value is in 22--25, then the code takes the old period $Q$
+and the new period $P$ and computes the value $(3Q+P)/4$ to use as the new
+period for Timer~4/5.
+
+That ends foreground processing for the tempo clock.  Some remaining logic
+for tempo timing is in the Timer~4/5 ISR, discussed below.
+
+\section{Interrupt service routines}
+
+The 32-bit combined Timer~4/5 generates its interrupts on the Timer~5
+vector, and the handler for that vector is in this file.  Resets of
+Timer~4/5 correspond to 24~PPQN clock ticks.  The handler acknowledges the
+interrupt, increments TEMPO\_CLOCK, and handles the special overflow
+behaviour of this soft timer:  when it increments past 71, it resets to 48
+instead of zero.  When it reaches 48 (from 47 or 71) or 24 (by incrementing
+from 23), that represents the start of a beat and the ISR makes a call to
+set\_beat\_flag.
+
+The MIDI backend uses interrupts from the four output compares OC1--4 when
+they are configured to generate pulses.  Pulse generation from the output
+compares is a little finicky and poorly explained in Microchip's
+documentation, and there is a relevant hardware erratum for them.  According
+to the erratum (and it is consistent with my observations), there is a
+requirement to wait for ``two prescaler cycles,'' which is 16 instruction
+times (1\,$\mu$s) with the 1:8 prescaler mode used here, after the interrupt
+before clearing the output compare's mode bits.  Furthermore (and this is
+the unclear point in the documentation) it actually is necessary to clear
+the mode bits at all.  We cannot just leave the output compare unit in pulse
+mode all the time and request new pulses repeatedly.  A new pulse is not
+triggered by just \emph{a write operation} to the mode bits, as might be a
+reasonable interpretation of what it says in the manual.  Instead, to get a
+new pulse it is necessary to clear the mode bits to zero, and then change
+them back to represent pulse mode.  The pulse is triggered by the actual
+change of the bit values.
+
+The code at this point defines a subroutine named oc\_safety\_delay, which
+takes 16 instruction cycles to \insn{rcall} and return.  The handlers for
+the OC1 and OC2 interrupts acknowledge the interrupts and clear the mode
+bits, calling oc\_safety\_delay before and after.  These two output
+compares, when used at all, send their outputs to the front-panel jacks in
+hardware and need no CPU support for that; the reason to have an ISR is just
+to make sure the mode bits are reset on the proper schedule without
+requiring foreground code to handle that.
+
+Output compare units~3 and~4 are not connected to front-panel jacks in
+hardware, but their timing controls the pulses that the CPU will send
+through the DACs.  The OC3 and OC4 ISRs are similar to those for OC1 and
+OC2, but the code also sends a zero to the corresponding DAC for the
+front-panel analog output to lower the voltage at the end of the output
+pulse.  Foreground code would have sent the value 0x0FFF to the DAC to raise
+the voltage at the same time it started the pulse.  These ISRs call
+oc\_safety\_delay before resetting the mode bits, but they do not bother
+with a delay afterward because the call to WRITE\_DAC1 or WRITE\_DAC2 will
+already take more than a microsecond.

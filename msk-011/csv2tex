@@ -1,0 +1,229 @@
+#!/usr/bin/perl
+
+# $Id: csv2tex 5836 2018-01-02 22:37:57Z mskala $
+
+#
+# CSV BOM converter for MSK 011
+# Copyright (C) 2017, 2018  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+#
+
+while (<>) {
+  chomp;
+  s/"//g;
+  ($id,$refdesl,$package,$qty,$value,$supplier,$other)=split(';',$_);
+  next if $refdesl eq 'Designator';
+  next if $value eq 'CONN_01X01';
+  next if $value eq 'OMIT';
+  next if $value eq 'JUMP';
+  foreach $refdes (split(',',$refdesl)) {
+    if ($refdes=~/^([a-z]+)([0-9]+)$/i) {
+      $reflet=$1;
+      $refnum=sprintf('% 6d',$2);
+    } else {
+      $reflet=$refdes;
+      $refnum='';
+    }
+    if ($value=~/^(.*)p[HF]?$/) {
+      $valnum=$1*1.0E-12;
+    } elsif ($value=~/^(.*)n[HF]?$/) {
+      $valnum=$1*1.0E-9;
+    } elsif ($value=~/^(.*)u[HF]?$/) {
+      $valnum=$1*1.0E-6;
+    } elsif ($value=~/^(.*)m[HF]?$/) {
+      $valnum=$1*1.0E-3;
+    } elsif ($value=~/^\d+(\.\d*)?$/) {
+      $valnum=$value;
+    } elsif ($value=~/^(.*)k[HF]?$/) {
+      $valnum=$1*1.0E3;
+    } elsif ($value=~/^(.*)M[HF]?$/) {
+      $valnum=$1*1.0E6;
+    } elsif ($value=~/^(.*)G[HF]?$/) {
+      $valnum=$1*1.0E9;
+    } else {
+      $valnum=0;
+    }
+    $valnum=0 if $reflet eq 'U';
+    $package='R4valmsk' if $package eq 'R4optmsk';
+    if ($valnum==0) {
+      $key="$reflet $value $package $refnum";
+    } else {
+      $key=$reflet.sprintf('% 25.12f ',$valnum).$package.$refnum;
+    }
+    $bom{$key}=join(',',$reflet,$refnum,$value,$package,$supplier,$other,$valnum);
+# print STDERR "$key\t|||\t$bom{$key}\n";
+  }
+}
+
+$oldtail='';
+$oldnum=-1000;
+$oldlet='';
+$reflist='';
+$partcount=0;
+
+foreach $key ((sort keys %bom),'') {
+  $_=$bom{$key};
+  s/, +/,/g;
+  ($reflet,$refnum,$value,$package,$supplier,$other,$valnum)=split(',');
+
+print "% $_\n";
+
+  $value=~s/%/\\%/g;
+  $value=~s/_//g;
+  $oldcomment=$comment;
+  $comment="($package)";
+  if (($package eq 'C2msk') && ($valnum<1e-8)) {
+    $comment='radial ceramic, 0.2$'."''".'$ lead spacing';
+  } elsif (($package eq 'C3msk') && ($valnum==1e-7)) {
+    $comment='axial ceramic';
+  } elsif ($package eq 'C2_3x2msk') {
+    $comment='film, 0.2$'."''".'$ lead spacing';
+  } elsif ($package eq 'C1V7msk') {
+    $comment='radial aluminum electrolytic, 0.1$'."''".'$ lead spacing';
+  } elsif ($package eq 'C6_multimsk') {
+    $comment='precision integrator capacitor; see notes';
+  } elsif ($value eq '140k') {
+    $comment='E48 value; use 130k$\Omega$ (second choice) '
+            .'or 150k$\Omega$ (third) if a more common value is desired';
+  } elsif ($value eq '1N4148') {
+    $comment='or 1N914; switching diode';
+  } elsif ($value eq '1N5222B') {
+    $comment='2.4V Zener';
+  } elsif ($value eq '1N5230B') {
+    $comment='4.7V Zener';
+  } elsif ($value eq '1N5233B') {
+    $comment='6.0V Zener';
+  } elsif ($value eq '1N5818') {
+    $comment='or SB130; Schottky rectifier';
+  } elsif ($value eq 'SB130') {
+    $comment='or 1N5818; Schottky rectifier';
+  } elsif ($value eq 'L-57EGW') {
+    $comment='bi-colour LED, Kingbright';
+  } elsif ($value eq 'MCL056PURGW') {
+    $comment='bi-colour LED, Multicomp';
+  } elsif ($value eq '2N5088') {
+    $comment='NPN general purpose amplifier, TO-92 EBC';
+  } elsif ($value eq 'PN200A') {
+    $comment='PNP general purpose amplifier, TO-92 EBC';
+  } elsif ($value eq '10k NTC') {
+    $comment='thermistor, Vishay NTCLE203E3103FB0';
+  } elsif ($value eq '78L09') {
+    $comment='+9V regulator in TO-92 package';
+  } elsif ($value eq '100SP3T1B1M1QEH') {
+    $comment='E-Switch 100-series SPDT on-off-on toggle';
+  } elsif ($value eq '100DP1T1B1M2') {
+    $comment='E-Switch 100-series DPDT on-on toggle';
+  } elsif ($value eq 'LM339') {
+    $comment='quad comparator, open collector output';
+  } elsif ($value eq 'LM13700') {
+    $comment='dual operational transconductance amp';
+  } elsif (($value eq 'socket') && ($package=~/DIP(\d+)msk/)) {
+    $comment="$1-pin DIP socket";
+    $value='';
+  } elsif ($value eq 'TL074') {
+    $comment='quad JFET-input op amp';
+  } elsif ($value eq 'TL074B') {
+    $comment='quad JFET-input op amp, -B low offset version';
+  } elsif (($value eq 'TL431') || ($value eq 'TL431TO92')) {
+    $value='TL431';
+    $comment='2.495V reference in TO-92 package';
+  } elsif ($value eq 'nylon') {
+    $comment='nylon washer for M3 machine screw';
+    $value='';
+  } elsif (($value eq 'HexNut') || ($value eq 'M3')) {
+    $comment='nut for M3 machine screw';
+    $value='';
+  } elsif ($value=~/^M([2-8])x(9|[0-9][0-9])$/) {
+    $comment="M$1 male-female standoff, ${2}mm body length";
+  } elsif ($value=~/^M3x6$/) {
+    $comment="M3 machine screw, 6mm body length";
+  } elsif (($package eq 'mono_jack_up') || ($package eq 'mono_jack_slotted')) {
+    $value='1502~03';
+    $comment='switched mono 3.5mm panel jack, Lumberg';
+  } elsif ($package eq 'jack_ra_slotted_msk') {
+    $value='MJ--3536';
+    $comment='switched mono 3.5mm right angle jack, CUI';
+  } elsif (($package=~/^SIP(\d+)msk$/) && ($reflet eq 'J')) {
+    $comment='female single-row socket, '.$1.' pins at 0.1$'."''".'$';
+    $value='';
+  } elsif (($package=~/^SIP(\d+)msk$/) && ($reflet eq 'P')) {
+    $comment='male single-row header, '.$1.' pins at 0.1$'."''".'$';
+    $value='';
+  } elsif ($package eq '2x05msk') {
+    $comment='male Eurorack power header, $2\times5$ pins at 0.1$'."''".'$';
+    $value='';
+  } elsif ($package eq '3296Pmsk') {
+    $comment='horizontal multiturn, Bourns 3296P/Vishay T93Z';
+  } elsif ($package eq '3296Ymsk') {
+    $comment='vertical multiturn, Bourns 3296Y/Vishay T93YB';
+  } elsif ($package eq '3386Pmsk') {
+    $comment='horizontal single turn, Vishay T73YP or similar';
+  } elsif ($package eq 'P260Tpot') {
+    $comment='vertical conductive plastic panel pot, BI Technologies '
+            .'P260T series, linear taper';
+  } elsif ($package eq '260Pmsk') {
+    $comment='horizontal conductive plastic panel pot, BI Technologies '
+            .'P260P series, audio taper';
+  } elsif ($package eq 'R4msk') {
+    $comment='';
+  } elsif ($package eq 'R35valmsk') {
+    $comment='';
+  } elsif ($package eq 'R4valmsk') {
+    $comment='';
+  }
+
+  $value=~s/( |$)/\$\\Omega\$$1/ if $reflet eq 'R';
+  $value=~s/uF/\$\\mu\$F/ if $reflet eq 'C';
+  if (($reflet eq 'R') && ($value=~/\*/)) {
+    $value=~s/\*//;
+    $value.=' 0.1\\%';
+  }
+  $tail=join(',',$reflet,$value,$package);
+
+  if ($tail ne $oldtail) {
+    if ($streak==2) {
+      $reflist.=", $oldlet$oldnum";
+    } elsif ($streak>2) {
+      $reflist.="--$oldlet$oldnum";
+    }
+    print "  $partcount & \\raggedright $reflist & $oldvalue "
+         ."& $oldcomment \\\\\n"
+      if $reflist ne '';
+    $oldtail=$tail;
+    $reflist='';
+    $partcount=0;
+    $streak=0;
+    $oldnum=-1000;
+  }
+  if ($refnum==$oldnum+1) {
+    $streak++;
+  } else {
+    if ($streak==2) {
+      $reflist.=", $oldlet$oldnum";
+    } elsif ($streak>2) {
+      $reflist.="--$oldlet$oldnum";
+    }
+    $streak=1;
+    $reflist.=', ' if $reflist ne '';
+    $reflist.="$reflet$refnum";
+  }
+  $partcount++;
+  $oldnum=$refnum;
+  $oldvalue=$value;
+  $oldlet=$reflet;
+}

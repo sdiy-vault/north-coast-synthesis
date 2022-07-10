@@ -1,0 +1,343 @@
+% $Id: offchip.tex 9810 2022-02-02 20:56:40Z mskala $
+
+%
+% Programmer documentation for Gracious Host off-chip peripherals
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Off-chip hardware}
+
+Here are some notes on the hardware features of the Gracious Host hardware
+beyond the peripherals built into the microcontroller chip.  More detail on
+the implementation of these is in the circuit explanation chapter of the
+UBM; here, the focus is on the programmer's view.
+
+\section{CV inputs}
+
+The Gracious Host has two external inputs, J1 and J2 on the schematic,
+intended for Eurorack CV.  Although in some modes of the firmware these are
+used for digital (gate or trigger) signals, we normally handle them as
+analog voltages with an intended useful range of 0--5V and input impedance
+of 100k$\Omega$.  It should be safe
+(in the sense of not causing damage to the module) to give them any voltage
+in $\pm$12V.
+
+The voltage from the jack goes through an inverting op amp and resistor
+network that scale 0V at the jack to about 3.19V at the microcontroller pin
+and 5V at the jack to about 0.665V at the microcontroller pin.  These
+voltages translate to nominal ADC readings of 989 and 206 respectively,
+and the default calibration data for the ADC interpolates between those
+values.
+
+This input scaling may seem not to make best use of the microcontroller
+ADC's voltage range of 0.0V to 3.3V, but the design is constrained to
+guarantee that in all cases of component and power supply tolerances, an
+input range of 0V to 5V will translate to something within the ADC's useful
+measurement range, and the op amp will be unable to drive the
+microcontroller pin outside its absolute maximum bounds of $-$0.3V to $+$3.6V. 
+Wide tolerances on the op amp's output voltage capabilities necessitate a
+significant safety margin at both ends.
+
+As discussed in the previous chapter, the ADC ISR in firmware.s writes the
+raw ADC readings into global variables INPUT\_ADC1 and INPUT\_ADC2 at
+1.618\,kHz update rate, and the ADC1\_TO\_NOTENUM and ADC2\_TO\_NOTENUM
+subroutines in calibration.s can convert these (using the current
+calibration) to a scale from 0x2400 corresponding to 0V to 0x6000
+corresponding to 5V.  To read the state of an input as a digital bit, read
+bit number COUT from the CM3CON register (for input~1) or CM1CON register
+(for input~2).  These bits will be set for high input (higher than about
+1.62V) and clear for low input.
+
+\section{Analog outputs}
+
+The upper of the two sets of output jacks, J3 and J4 on the schematic,
+is intended for control voltages in the range 0V to 5V (upper end of the
+range actually a little higher, but not calibrated).  These jacks are driven
+by a Microchip MCP4822 12-bit DAC chip, through non-inverting op amps with a
+nominal gain of 2.8.  The DAC chip has an internal reference voltage of
+2.048V$\pm$2\%, so the maximum output voltage at the jacks is nominally
+5.73V.  The minimum is zero, subject to whatever offset exists in the op
+amp.
+
+Note that the two units in the DAC chip are reversed relative to the jacks:
+the DAC's V$_\textrm{A}$ is output~2, on the right, and the DAC's
+V$_\textrm{B}$ is output~1, on the left.
+
+This chip is controlled through the SPI bus (SPI1 on-chip peripheral,
+described in the previous chapter).  To send a transaction, the steps are:
+\begin{itemize}
+  \item Assert RA1 (microcontroller pin~3) low to tell the DAC to listen to
+    the SPI bus (necessary because this bus is shared between it and the
+    SRAM), possibly with the instruction \insn{bclr} LATA, \#1.
+  \item Send a 16-bit command word to the DAC through the SPI peripheral. 
+    Bit 15 is 1 for DAC~B (output channel 1), 0 for DAC~A (output channel 2);
+    bit 14 is don't care; bit 13 selects the gain mode, with 1 being
+    recommended for 1$\times$ gain; and then the remaining bits are the DAC
+    value, 0x000 to 0xFFF.
+  \item Retract RA1, as with \insn{bset} LATA, \#1.
+  \item If you're changing the output voltage, that doesn't happen just by
+    sending the SPI transaction; you need to also strobe the DAC chip's
+    $\overline{\textrm{LDAC}}$ input (microcontroller RA4, pin~12) low for
+    at least 100\,ns (thus, at least two instruction cycles) and then both
+    outputs will update at once.  Sample code looks like this:
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\>\insn{bclr}\>LATA, \#4\\
+\>\insn{nop}\\
+\>\insn{bset}\>LATA, \#4\\
+\end{tabbing}
+\end{itemize}
+
+Sending data through the SPI peripheral is a little finicky.  Although I
+think the hardware is supposed to support 16-bit write as a single
+operation, I have only gotten good results sending one byte at a time
+(\emph{big endian}) to the SPI1BUF register with the \insn{mov.b} WREG,
+SP1BUF instruction specifically.  Referring to WREG by the name W0 makes the
+assembler produce a different opcode and I'm not sure they both work, even
+though they should have identical effects.  I've also encountered similar
+issues with the CRC32 peripheral and it's possible some of these cautions
+are more relevant there than with SPI.
+
+Then it's necessary to read back dummy bytes and wait for the SRXMPT bit in
+SPI1STAT to detect the end of the transaction.  Instead of talking directly
+to the hardware it is probably better for higher-level code to call
+WRITE\_DAC1 and WRITE\_DAC2 for writing raw 12-bit DAC values, or
+NOTENUM\_TO\_DAC1 and NOTENUM\_TO\_DAC2 for applying calibration data and
+writing note numbers on the usual 0x2400 to 0x6000 scale.  All those
+subroutines are in calibration.s, and they do the necessary handshaking to
+talk to the chip properly.
+
+The stability capacitors in the output amplifiers cut off their frequency
+response at about 250\,kHz.  With the SPI bus running at 8\,Mbps, 16 bits per
+transaction, some overhead, and the Nyquist limit shaving off another factor
+of two, the CPU is unlikely to be able to drive the outputs to frequencies
+higher than about 100\,kHz anyway, but that should be plenty fast enough.
+
+It might be possible to get a few extra volts of output range by using the
+2$\times$ gain mode of the DAC chip (bit~13 of the command word equal to 0
+instead of 1).  In that case the DAC's output code range becomes 4.096V, but
+because its power supply is only 3.3V, codes corresponding to higher DAC
+voltages than 3.3V will be unusable.  With the 2.8 voltage gain in the op
+amp circuit, it might be possible to program the module hardware to generate
+control voltages up to about 9V this way, but with lower resolution than in
+the standard 5V range.  I have not tested, and do not particularly
+recommend, the use of 2$\times$ gain mode.
+
+\section{Gate/trigger outputs}
+
+The lower of the two sets of output jacks, J5 and J6 on the schematic, is
+intended for digital~CV outputs (gates and triggers).  These are connected
+to the microcontroller's pins 25 (RB14) and 17 (RB8) through non-inverting
+op amp circuits with gain of 2.8.  As a result, the 0V and 3.3V logic levels
+translate to 0V and 9.2V nominal voltages at the output jacks, which ought
+to be plenty for triggering Eurorack modules while still also being low
+enough not to damage or confuse reasonably well-designed modules.  As with
+the analog outputs, the frequency response of these amplifiers cuts of at
+about 250\,kHz, which is just enough that two 960\,$\mu$s trigger pulses
+on exact 1\,ms boundaries (thus, separated by a low of 40\,$\mu$s) will be
+clearly distinguishable from each other.
+
+These signals can be driven in GPIO mode just by setting and clearing bits
+14 and 8, respectively, of the LATB register.  The standard firmware also
+sometimes PPS maps them to the output compare peripherals (OC1 for channel
+1, OC2 for channel 2) in order to generate pulses or frequencies.  It is
+probably never useful to tri-state the outputs; in that case the op amps
+will see disconnected inputs, with unpredictable effects.
+
+\section{LEDs}
+
+The two LEDs are connected to microcontroller pins~16 (RB7) and~18 (RB9)
+with bidirectional current driver circuits.  Each LED can be red, green, or
+off, with the brightness in the two modes intended to be roughly equal
+(which ends up meaning about 9.9\,mA in green mode, 2.4\,mA in red mode). 
+When the microcontroller pin is tri-stated, the current should be zero (to
+within the limits of op amp offset) and the LED will be off.  So the
+register bits should be set as follows:
+
+\begin{tabular}{cc|l}
+  LATB & TRISB & LED state \\ \hline
+  1 & 0 & green \\
+  0 & 0 & red \\
+  -- & 1 & off
+\end{tabular}
+
+Use bit~7 of the LATB and TRISB registers for the left LED and bit~9 for the
+right LED.
+
+In principle, you could get yellow output by switching rapidly between red
+and green, and you could even use an output compare (possibly OC5, which is
+not used for anything else by the current firmware) to accomplish the
+switching without CPU intervention.  However, doing that means changing the
+load on the power supply by several milliamps at the frequency you're doing
+the switching, and if that's an audio frequency it may well end up causing
+interference that will be heard in the outputs of other modules in the
+synthesizer, given the poorly decoupled power systems many Eurorack users
+install.  So, the standard firmware does not attempt to turn the LEDs
+yellow, and if you write code for it, please do not do it in such a way that
+I will be blamed.
+
+There is a driver in ledblink.s, described in its own chapter of this
+manual, for optionally displaying different patterns of on/off and red/green
+blinking on the LEDs.
+
+\section{SRAM}
+
+The Gracious Host is equipped with a 128K SRAM chip, a Microchip 23LC1024,
+attached to the SPI bus pins (SPI1 on-chip peripheral, described in the
+previous chapter).  This chip is used during firmware update: the old
+firmware reads the new image into the SRAM, then runs the ``loader,'' which
+is a small subroutine free of dependencies that reflashes program memory
+using the data in the SRAM.  This way, the large and complicated code needed
+to talk to the USB device and decode the FAT filesystem, does not need to
+remain in program memory during the re-flash operation, and every
+field-programmable byte of program memory can be replaced by the new
+firmware.
+
+The SRAM chip is not, at present, used in any other way by the firmware; but
+it is available for use in other ways by future or third-party firmware
+versions.
+
+The steps to send a command to the SRAM are similar to those for the DAC,
+modified by the fact that the connection to the SRAM is two-way.
+\begin{itemize}
+  \item Assert RA3 (microcontroller pin~10) low to tell the SRAM to connect
+    to the SPI bus, possibly with \insn{bclr} LATA, \#3.
+  \item Send a command to the SRAM through the SPI peripheral.  Each starts
+    with an 8-bit instruction and then possibly has other fields depending
+    on the command.  Commands are summarized below and detailed in the
+    23LC1024 data sheet.
+  \item After transferring all data for the command through SPI,
+    retract RA3, as with \insn{bset} LATA, \#3.
+\end{itemize}
+
+The usual cautions for SPI apply here.  Every byte written must be matched
+by a byte read.  Normally every byte of live instruction or data will be
+matched by a dummy byte of discarded garbage, and every byte of live data
+returned by the SRAM must be triggered by writing a dummy byte, which will
+be ignored.  As discussed in the previous chapter, a silicon erratum
+affecting the SPI peripheral means that the SPITBF bit used for detecting a
+full transmit buffer may not work properly, and I think it is safest never
+to completely fill either buffer.
+
+The SRAM is capable of ``double'' or ``quad'' serial modes, which are
+modifications of the SPI protocol using two or four data lines to transmit
+more bits per clock cycle.  The Gracious Host's microcontroller does not
+support these modes and there are not enough pins available to do it by
+bit-banging.  The SRAM also supports three different modes for the READ and
+WRITE commands, selected by writing to a mode register with the WRMR
+command.  In \emph{sequential} mode, which is the default, you specify a
+starting address to read or write and then read or write as many bytes as
+desired; they will automatically access consecutive addresses, wrapping
+around from 0x01FFFF to 0x000000.  In \emph{byte} mode, you specify a byte
+address and then read or write that one byte; longer transactions are not
+allowed.  And in \emph{page} mode, you specify a starting address and read
+or write a variable number of bytes as with sequential mode, but the
+operation will wrap around at the end of the 32-byte aligned region of
+memory containing the starting address.
+
+Valid commands for the SRAM chip are as follows.
+\begin{itemize}
+  \item READ: send opcode 0x03, then a 24-bit address (big endian, top 7
+    bits ignored), then read as many data bytes as appropriate.
+  \item WRITE: send opcode 0x02, then a 24-bit address (big endian, top 7
+    bits ignored), then write as many data bytes as appropriate.
+  \item EDIO and EQIO:  opcodes 0x3B and 0x38 enter dual and quad serial
+    mode respectively, but this is not a useful thing to do on Gracious Host
+    hardware.
+  \item RSTIO:  send opcode 0xFF to undo the effect of EDIO or EQIO,
+    returning the chip to plain one-data-line SPI mode; should not be
+    necessary because we never go into dual or quad mode anyway, but the
+    firmware does this before each session of using the SRAM just in case.
+    The SRAM chip is designed to recognize this command sent by plain
+    one-data-line SPI even if it is in one of the other modes.
+  \item WRMR:  ``write mode register.''  Send opcode 0x01, then the new
+    value for the mode register.  The useful and legal values are 0x00 for
+    byte mode, 0x40 for sequential mode, and 0x80 for page mode.
+  \item RDMR:  Send opcode 0x05, then receive the one-byte current value of
+    the mode register.
+\end{itemize}
+
+Because the current firmware does not use the SRAM much, it does not provide
+a complete library for talking to the SRAM.  But there is example code to
+imitate in usbmass.s and loader.s, and a globally available subroutine
+called SPI1\_READ\_BYTE which may be useful.  That receives one byte from the
+SPI peripheral, with appropriate handshaking to wait for the byte to arrive. 
+It returns the byte in the low byte of W0, while preserving the former low
+byte of W0 by swapping that into the high byte.  Calling this subroutine
+twice receives a big-endian 16-bit value.
+
+Remember that every real write should be followed by a dummy read, and every
+real read should be preceded by a dummy write.  The total number of bytes
+read and written must balance.  Trying to read when there has been no
+corresponding write may lock up the firmware until the WDT resets it. 
+Writing at least a little bit ahead of reads is necessary, but going too far
+may cause bytes to be lost in the full buffer.  As long the excess of writes
+over reads is kept in the range zero to seven bytes, there should be no
+danger of buffer overflow or deadlock.  And the interface is sufficiently
+fast in comparison to the processor's instruction speed, that attempting to
+keep the buffers from emptying and maximize throughput, is probably not
+worthwhile.
+
+\section{ICD/ICSP header}
+
+There are pads on the back board of the module for a 1$\times$6-pin, 0.1$''$
+header connector called P4.  This would not be installed in a standard
+build, but someone wishing to use Microchip's in-circuit tools for
+programming and debugging Gracious Host firmware could add this header to a
+module to have a place to plug in the debugging tool.  Note the index pin
+(pin 1) of the header is at the \emph{top} of the board; it is important to
+plug in the debugging tool right way round.
+
+The ICD/ICSP header connects to pins 1, 4, and 5 of the microcontroller and
+also to the 0V and $+$3.3V power supplies.  A USB debugging tool like a
+PICkit will normally draw a fair bit of power and it is probably \emph{not}
+advisable to let it draw that power from the Gracious Host; nor will it work
+to power the Gracious Host from the debugging tool, because the Gracious
+Host also needs $+$5V and $\pm$12V.  Ideally, you should power up both the
+Gracious Host and the debugging tool, separately, before plugging them into
+each other.
+
+\section{Voltage regulator/bus access}
+
+There are pads on the back board for an optional $+$5V regulator (7805
+chip) which regulates the Eurorack $+$12V supply down to $+$5V, to supply
+USB bus power and be further regulated down to $+$3.3V (by an external
+regulator on the Gracious Host board) and from there to $+$2.55V for the
+microcontroller core (by its internal regulator).  Adding the $+$5V
+regulator is not recommended for production builds, but it could be useful
+in a debugging situation when it is desired to power up the module with a
+$\pm$12V bench supply.  The Gracious Host itself consumes at most about
+30\,mA of $+$5V power (most when the front-panel LEDs are lit), but because
+it also supplies $+$5V from this bus to the USB-connected device, the total
+current drawn from the supply may be significantly more.
+
+There is a jumper block on the back of the module (J9) for selecting whether
+to connect the internal $+$5V bus to the Eurorack bus (for normal power-up
+from a Eurorack $+$5V supply) or to the optional on-board regulator (if
+installed).  The same jumper block also selects whether to connect the left
+analog and digital output jacks, to the Eurorack CV/gate bus lines, to allow
+the Gracious Host to control other modules by default with no front-panel
+patching.  The jumpers are not directly readable in firmware; at most their
+consequences might be noticed.  But do note that every viable configuration
+requires at least \emph{one} jumper to be installed.  If the module is
+unable to power up at all, check that there is a jumper installed on the
+back.
+
+For more information on the jumper settings and $+$5V power requirements,
+see the UBM.

@@ -1,0 +1,219 @@
+% $Id: adjustment.tex 8046 2020-08-15 16:08:52Z mskala $
+
+%
+% MSK 009 testing and adjustment instructions
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Adjustment and testing}
+
+It is inevitable that a circuit of this kind will have a certain amount of
+DC offset and control feedthrough, and since the MSK~009 was never meant to
+be a ``well-behaved'' filter anyway, it doesn't seem appropriate to attempt
+to eliminate it entirely.  Should you wish a completely DC-free signal, I
+recommend running the filter output through a North Coast Synthesis Ltd.\
+MSK~011 Transistor Mixer with its AC-coupled output.  However, the MSK~009
+does have two trimmers for minimizing offset, and this chapter describes how
+to properly adjust them, along with some tips on troubleshooting should
+everything not work perfectly at initial power-up.
+
+You will need a multimeter and a Eurorack power supply.  An oscilloscope may
+be useful for troubleshooting but should not be needed for basic adjustment.
+
+\section{Short-circuit test}
+
+With no power applied to the module, check for short circuits between the
+three power connections on the Board~2 Eurorack power connector.  The two
+pins at the bottom, marked with white on the circuit board, are for -12V. 
+The two at the other end are for +12V; and the remaining six pins in the
+middle are all ground pins.  Check between each pairing of these three
+voltages, in both directions (six tests in all).  Ideally, you should use a
+multimeter's ``diode test'' range for this; if yours has no such range, use
+a low resistance-measuring setting. It should read infinite in the reverse
+direction (positive lead to $-$12V and negative lead to each of the other
+two, as well as positive lead to ground and negative to $+$12V) and greater
+than 1V or 1k$\Omega$ in the forward direction (reverse those three
+tests).  If any of these six measurements is less than 1k$\Omega$ or 1V,
+then something is wrong with the build, most likely a blob of solder
+shorting between two connections, and you should troubleshoot that before
+applying power.
+
+\emph{Optional}:  Although we test all cables before we sell them, bad
+cables have been known to exist, so it might be worth plugging the Eurorack
+power cable into the module and repeating these continuity tests across the
+cable's corresponding contacts (using bits of narrow-gauge wire to get into
+the contacts on the cable if necessary) to make sure there are no shorts in
+the cable crimping.  Doing this \emph{with the cable connected to the
+module} makes it easier to avoid mistakes, because the module itself will
+short together all wires that carry equal potential, making it easier to be
+sure of testing the relevant adjacent-wire pairs in the cable.
+
+Plug the module into a Eurorack power supply and make sure
+neither it nor the power supply emits smoke, overheats, makes any unusual
+noises, or smells bad.  If any of those things happen, turn off the power
+immediately, and troubleshoot the problem before proceeding.
+
+\emph{Optional}: Plug the module into a Eurorack power supply
+\emph{backwards}, see that nothing bad happens, and congratulate yourself on
+having assembled the reverse-connection protective circuit properly. 
+Reconnect it right way round before proceeding to the next step.
+
+\section{Output offset adjustment}
+
+Identify the two trimmers on the back of the module (Board~2).  When you are
+looking at the back of the module, R20 is at upper left and R30 is at upper
+right.  There is some interaction between them, but R20 primarily affects
+the offsets on the HP and LP outputs, and R30 the offsets on the BP and LP
+outputs.  The labels on early versions of the circuit board do not mention
+R20's effect on HP.  Bearing in mind that with two trimmers we cannot
+perfectly control all three offsets, and offset on LP is more important than
+on BP because of the intended application of the module as an envelope
+follower, the recommended procedure is to use R20 to minimize the offset on
+the HP output, then R30 to minimize the offset on the LP output, then repeat
+to deal with their interaction.  The offset on the BP output is not directly
+controlled but should be small once the other two are minimized.
+
+Disconnect any signal cables from the filter.  Turn the resonance and CV
+attenuator controls fully counterclockwise and the tuning control not quite
+fully counterclockwise (knob pointer around eight o'clock).  Apply
+power.
+
+Measure the DC voltage on the HP output and adjust R20 to bring this voltage
+as near zero as you reasonably can.  Within $\pm$0.10V is good.
+
+Measure the DC voltage on the LP output and adjust R30 to bring this voltage
+near zero also.  Again, within $\pm$0.10V is good.
+
+Repeat the last two steps a second time:  measure the HP voltage and adjust
+R20 to null it, and then measure the LP voltage and adjust R30 to null it.
+This completes the adjustment.
+
+If you find that you cannot zero the voltages because the trimmers have
+insufficient adjustment range, try repeating the procedure with the tuning
+knob turned a little further counterclockwise.  In general, the module will
+be easier to adjust the lower the tuning setting, but the behaviour of the
+module will be less predictable at high frequencies if adjusted at lower
+frequencies.  On the other hand, if the knob is turned too far clockwise
+during the adjustment, then the module may tend to couple noise from the
+power supply into its outputs when set to very low frequencies.  My current
+recommendation is to turn the knob to about eight o'clock as the best
+compromise.
+
+If you cannot bring the voltages close to zero even with changes to the
+tuning, it may indicate a problem with the build, but one more thing to try
+is swapping the two TL074 chips.  Occasionally, if the input offset on these
+chips is near the boundary of its acceptable specification, it can make
+adjustment difficult, and since the two chips will have different random
+input offsets, swapping them can resolve the issue.
+
+\section{Troubleshooting}
+
+It would require several books to convey all the skills and knowledge useful
+in troubleshooting even a simple electronic circuit like this one, but here
+are some possible symptoms and some suggestions on diagnosis and treatment.
+
+No response from the module at all:  no signal on the outputs even in
+resonance mode, or with strong signals on the inputs.  Most likely a power
+problem, such as a power cable plugged in wrong or a short circuit.  It
+might even be a problem in the power supply and not the module itself.
+
+No oscillation with resonance turned up to maximum:  it is normal that the
+module may not oscillate over the entire range of the tuning knob, and for
+the amplitude to vary a bit over the range where it does oscillate, but it
+should cover most if not all of the range.  Be sure that the output offset
+adjustment, described above, has been done; excessive DC offset may inhibit
+oscillation.  However, if you want absolutely the most oscillation possible,
+you may find that tweaking the trimmers a little bit away from zero-offset
+may increase the amplitude a little bit.  This kind of experimentation is
+best done with an oscilloscope on the output as you adjust the trimmers. 
+It's easy to gain an intuitive feeling for the oscillation/offset tradeoff
+when working live on the oscilloscope screen.
+
+Module responds, but not as expected:  first attempt to localize the
+problem.  Do both inputs work?  Do all three outputs work?  If you can find
+two tests where one works and the other doesen't, then the problem is
+probably related to whatever part of the module was involved in the failing
+test and was not involved in both tests.  Unfortunately, the multiple
+feedback loops in the state-variable filter mean that a large part of the
+module is involved in pretty much every function; but the general principle
+of narrowing things down remains at the heart of troubleshooting.
+
+A specific problem noted on one prototype during testing:  it's possible for
+contamination to be washed into the board-to-board connector during
+cleaning, and this can make the connection flaky, with possible
+hard-to-debug results including DC offsets that won't go to zero even with
+the trimmers at the ends of their ranges.  If you've washed your boards with
+solvent, and especially if you haven't been careful to keep it out of the
+female connector, then try gently unplugging and re-plugging the
+board-to-bard connection a few times.
+
+Shorts on board-to-board connector:  in a couple of assembled builds I found
+a problem where pins of the board-to-board connector were shorting to the
+ground plane.  I think the solder mask may have been slightly misaligned
+even though it passed quality control, allowing solder to short to an
+exposed bit of ground plane; or, possibly, too much soldering heat
+had burned through the mask to create a hole.  Anyway, the main symptom was
+one or all of the output jacks giving DC voltages that didn't change with
+input CV and front-panel controls.  To further diagnose it, check for
+continuity from each pin of the connctor to ground.  Three of the pins are
+supposed to be connected to ground, but if more seem to be, it's
+probably a short.  Doing the test with the boards separated will allow
+determining which board has the short.  On my boards,
+once I knew the issue I was able to look closely and see the solder bridging
+from pin to ground plane nearby, and cutting the extra away with a sharp
+knife was enough to fix the problem.
+
+Bad amplitude (including \emph{no} amplitude) or DC offset in oscillation,
+combined with funny response to large-amplitude signals on the rectifier
+input: this combination of issues suggests that one of the Zener diodes was
+swapped with the nearly identical-looking switching diode.  If one of these
+issues occurs without the other, it suggests that maybe all the correct
+diodes were installed, but at least one of them is backwards.
+
+General quality issues:  many problems can be diagnosed just by looking
+closely at your work, preferably with at least one night's sleep between
+when you assembled the module and when you examine it.  Look for bad solder
+joints that fail to connect; solder bridges between nearby connections
+(especially on the discrete transistors in the exponential converter);
+components missing; components exchanged (especially resistors with similar
+colour codes, such as 1k$\Omega$ swapped with 10k$\Omega$); polarized
+components such as diodes mounted backwards; and so on.
+
+General tips for debugging DIP ICs:  make sure for, for each IC, that
+\begin{itemize}
+  \item it really is the type of IC it's supposed to be, not something else
+    (beware of cheap ICs you buy from Chinese sellers on eBay, though the
+    ones in this project are common enough in more reputable channels that
+    you probably wouldn't have attempted that anyway);
+  \item it is plugged in snugly;
+  \item all the legs of the chip go nicely into the corresponding holes in
+    the socket, with none bent outside or folded up under the chip;
+  \item it is plugged in \emph{at all} (forgetting to do so is a surprisingly
+    common mistake!);
+  \item it is plugged in the right way around, with the Pin 1
+    indentation or notch matching the clues on the
+    board (if this is wrong, the chip is probably destroyed and will need to
+    be replaced);
+  \item there are no solder bridges on the chip socket, unsoldered pins,
+    debris clogging the socket holes, or similar;
+  \item its decoupling capacitors (the small ceramic ones) are installed and
+    there is nothing wrong with their solder joints; and
+  \item in the case of the two TL074 chips, try swapping them and see if that
+    makes any difference.
+\end{itemize}

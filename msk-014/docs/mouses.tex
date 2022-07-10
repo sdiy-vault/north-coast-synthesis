@@ -1,0 +1,314 @@
+% $Id: mouses.tex 9801 2022-01-28 23:10:45Z mskala $
+
+%
+% USB boot mouse driver
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{USB boot mouse driver (mouse.s)}
+
+The USB boot mouse driver is a relatively simple per-device driver and
+serves as an example of the framework code also used by the others.
+
+\section{TPL entry}
+
+The source file starts with a few instructions assembled into a section
+named til\_mouse, which the linker will automatically insert in the Targeted
+Interface List.  These make a call to the support routine
+TPL\_MATCH\_CLASS\_AND\_PROTOCOL with the register values for class~3
+(``HID''), subclass~1 (``boot protocol''), protocol~2 (``mouse'').  The
+session manager calls the TIL for each interface descriptor the device
+exposes, and if it exposes one saying that the attached device is a boot
+mouse, then this entry will direct execution to the entry point at label
+mouse\_driver.
+
+\section{Data structures}
+
+After declaring some constants for mouse sensitivity, the range of notes
+supported by the DACs, and the pattern of semitones in the diatonic scale,
+this section declares a bunch of local variables in the common data area
+using the in\_common macro.  There is also a small section of constant data
+assembled into program memory, which serves as a template for initializing
+the local variables.
+
+\section{Driver init and mouse input}
+
+The entry point at mouse\_driver starts by calling USB\_CONFIGURE\_DEVICE
+and USB\_SET\_BOOT\_PROTOCOL from usb.s to tell the device to use the current
+configuration descriptor and the boot mouse protocol.  These calls have the
+side effect of cleaning up the \insn{lnk} stack frame left behind by the
+session manager.  The boot mouse protocol uses a single interrupt input
+endpoint, which is initialized by the support routines.
+
+Next the code initializes the local common-data variables using the
+template.  This includes setting up the IRP for the interrupt transactions
+used to read the mouse position.  A few words of zeroes at the start of the
+layout are initialized with a \insn{repeat}/\insn{clr} loop instead because
+that is cheaper than having extra zeroes at the start of the template.
+
+Next, the driver looks at the poll-frequency recommendation from the device,
+which was stashed at offset 12 in the EP data structure by the support
+routines.  It clamps this to be in the range 5\,ms to 200\,ms, then saves it
+in W11.  The code in the main loop is sufficiently simple that most of the
+higher-numbered working registers can be used as local variables, retaining
+their values throughout the loop.
+
+Finally before starting the main loop, it calls PPS\_MAP\_GPIO\_DOUT from
+firmware.s to make sure that the digital output jacks are in GPIO mode, and
+clears the first two bytes of the I/O buffer to make sure that the driver
+starts with the buttons recorded as unclicked.  At least some mice send
+zero-length reports when there is no change from the previous state, so
+without this step the buttons might remain in an uninitialized state until
+after the first click.
+
+The main loop begins at label driver\_loop.  This starts with a call to
+USB\_LOOP\_WAIT, which keeps the polls happening at the interval in
+milliseconds that was stored in W11.  Next, it clears the bytes at offsets 1
+and 2 in the buffer (the X and Y offsets), so that if the mouse returns a
+short report, the firmware will see zeroes and not keep adding up the
+offsets left behind by earlier full-length reports.
+
+Then it calls USB\_WAIT\_ON\_IRP with the proper arguments to request an up
+to 3-byte report from the mouse's interrupt in endpoint.
+
+\section{Mouse report decoding}
+
+The three bytes of the mouse report are as follows.
+\begin{itemize}
+  \item Offset 0:  button states, 1 for pressed and 0 for released; left,
+    right, and middle buttons mapped to bits 0, 1, and 2 respectively.
+  \item Offset 1: X offset from the previous position, signed 8-bit number.
+  \item Offset 2: Y offset from the previous position, signed 8-bit number.
+\end{itemize}
+
+Mice often return short or zero-length results, in which case the remaining
+bytes will not be changed by USB\_WAIT\_ON\_IRP.  The previous button state
+left in byte~0, and the zeroes we explicitly wrote to bytes~1 and~2, will
+then show through instead.
+
+The code for this section starts by sign-extending the X byte to 16 bits and
+calling a star section subroutine (shared with the Y-axis code below) to
+scale it with MOUSE\_SCALE\_MULTIPLIER and MOUSE\_SCALE\_DIVISOR, two
+constants that can be tweaked to get different sensitivity.  The result is
+added to the abs\_x variable, and then clamped by another star section
+subroutine to the range LOW\_NOTE to HIGH\_NOTE.  Then the same logic
+operates on the Y coordinate.
+
+The buttons local variable stores the previous two values of the button byte
+from the mouse, old in high byte and new in low byte.  This gets updated:
+the low byte is swapped into the high byte and the byte we just read from the
+mouse is written into the low byte.  Next the code checks whether, between
+the last report and the current one, the middle button has gone from
+unclicked to clicked.  If so, it increments the quantization mode (initially
+3, only the lowest two bits actually used).
+
+The variables abs\_x and abs\_y are stored in the usual
+semitone-and-fraction format used by many parts of the Gracious Host
+firmware.  The high byte is the MIDI note number and the low byte represents
+additional pitch above that, scaled at 256 units equal to one semitone.  The
+code somputes semitone-quantized versions of abs\_x and abs\_y and stores
+them in W6 and W7 respectively.  The algorithm for semitone quantization is
+very simple:  add 0x0080 to the register value (half a semitone) and then
+truncate by zeroing the low byte.
+
+Then there is some logic to choose cases according to the current
+quantization mode, looking at the bottom two bits of the mode variable.  For
+modes~0 and~1 the left LED is red (as a matter of colour; turning it on and
+off is handled later), and for modes~2 and~3 it is green.  The low bit of
+the mode variable similarly controls the right LED.
+
+\section{Mode 0 (smart quantize)}
+
+Mode~0 is the ``smart'' quantization mode, and the most complicated one:  it
+quantizes to a diatonic scale but tries to adjust that scale on the fly to
+match the user's note choices.
+
+The way it works is that a diatonic (major or minor) scale covers seven
+consecutive positions in the circle of fifths, for instance,
+F--C--G--D--A--E--B for C~major or A~minor.  The most naturally ``nearby''
+scales are the ones that overlap almost entirely with the current one; for
+instance, F~major removes B at the right and adds B\musFlat at the left,
+whereas G~major removes F at the left and adds F\musSharp at the right. 
+Each differs from C~major by only one note changed.
+
+So if the user seems to be playing notes more at the left end of the
+sequence, it suggests they really want to be playing in a flatter key than
+this one and we should shift the window of allowed notes to the left,
+whereas if they seem to be mostly playing notes toward the right, it
+suggests they want to be in a sharper key and we should shift the window of
+allowed notes to the right.  The way the driver detects these conditions is
+by counting how many times the user has played the note at either end of the
+scale (the subdominant and dominant, if we call this a major scale), as a
+streak without playing the one at the other end.
+
+The two extreme notes are the fourth and the seventh of the major scale: F
+and~B in the case of C~major.  Note that the two notes B and~F are
+harmonically as far apart as you can get in the same diatonic scale, and
+they form a tritone and are usually thought to sound dissonant when played
+together.  Musicians tend to avoid using these two notes -- or more
+generally, the two notes at harmonic extremes of \emph{any} diatonic scale
+-- in close proximity to each other, except in certain cases like the
+dominant seventh chord where there is tension being created on purpose.
+
+Play the fourth three times without playing the seventh, and smart
+quantization shifts the scale to the subdominant.  Play the seventh three
+times without playing the fourth, and smart quantization shifts the scale to
+the dominant.  So starting from C~major, if you play~F three times without
+playing~B, then~B is removed from the scale and replaced by B$\musFlat$,
+shifting the key to F~major.  You have musically implied that you don't
+really want to use~B and would prefer to have more notes harmonically close
+to~F.  On the other hand, if you play~B three times without playing~F,
+then~F is removed from the scale and replaced by~F$\musSharp$, shifting the
+key to G~major; you have implied that you would prefer to have more notes
+close to~B.  If you play both~B and~F in close proximity without heavy
+emphasis on just one of them, then you are implying that you really do want
+to play in C~major after all, or A~minor, which is the same set of notes,
+those being the only diatonic keys that can accommodate both~B and~F; and
+doing this prevents the smart quantizer from changing the key.  The result
+is that the key will shift to accommodate the notes the user is playing, as
+comfortably as possible, and other notes offered as quantization choices
+will always be notes that harmonize well with the notes the user is
+choosing.
+
+I don't know how musically useful this mode really is, but it seems to
+produce reasonable results in practical tests, and that description may shed
+some light on what it is attempting to achieve.  The basic idea is just that
+you can plug in a mouse, mess around with it, and have something come out
+that sounds musical, despite the difficulty of making accurate note choices
+with the mouse as controller.  Obviously, users who want a more precisely
+controllable quantization mode can use some other one; but they are also
+likely not to want to use a mouse as a performance controller anyway.
+
+The implementation starts by calling quantize\_to\_key, a chunk of code
+shared with mode~1 below.  It finds key-quantized versions of the X and Y
+coordinates, that is, the closest notes in the diatonic key instead of just
+the closest semitones, using the variable named ``key'' to choose which key. 
+The variable named key is kept as a modulo-12 number in the \emph{high}
+byte, zero low byte, for compatibility with semitone-and-fraction pitch
+values.  But the key value is \emph{added} to the pitch before quantization,
+so it has to be the negative, modulo 0x0C00, of the desired root note.  For
+example, the key of C$\musSharp$~major is represented by 0x0B00.  Adding
+that to a semitone-and-fraction number for any C$\musSharp$ will give a
+round multiple of 0x0C00.
+
+The quantized-to-key absolute notes for the X and Y coordinates go
+in W6 and W7, but the \emph{relative} notes within the key are saved in W9
+and W10.  Those are integers in the range 0 to 11, counting semitones from
+the root of the major scale without the octave.  For instance, the note E
+will give a value of 4 in the key of C~major/A~minor.  Due to the
+quantization to the diatonic scale, the only possible values for W9 and W10
+after quantize\_to\_key are those in $\{0,2,4,5,7,9,11\}$.
+
+Then the code checks the left button for whether it is newly pressed.  If
+so, we have a new note to count on the X coordinate.  If W9 is 5 (fourth of
+the major scale, like~F in C~major) then we add one to the fourths counter
+and zero out the sevenths counter.  If W9 is 11 (seventh of the major scale,
+like~B in C~major) then we add one to the sevenths counter and zero the
+fourths counter.  So, either way, we have a count of the length of the
+longest streak of fourths or sevenths without the other.  The same logic is
+applied to the right button.  Note they share the same set of fourths and
+sevenths counters.
+
+Next the fourths and sevenths counters are checked for whether there has
+been a streak of three fourths or three sevenths.  If not, the handling for
+mode~0 is over and the code branches to do\_output.  If there has been such a
+streak, the key is shifted accordingly, by adding either 0x0700 for a shift
+to the subdominant after three fourths, or 0x0500 for a shift to the
+dominant after three sevenths.  Either way, the key is reduced modulo 0x0C00
+to keep it in the range 0x0000 to 0x0B00.  Then there is a branch to
+clr\_fourths\_and\_sevenths, which is code shared with mode~1 that clears the
+fourths and sevenths counters before branching to do\_output.
+
+\section{Mode 1 (quantize to C major)}
+
+Mode~1 is essentially just mode~0 with the key forced to stay in C~major and
+the fourths and sevenths counts held at zero.  It starts by zeroing the key
+variable, then calls quantize\_to\_key, the star section shared with mode~0,
+included and described here to reduce the complexity of the mode~0 code and
+description.
+
+At the start of quantize\_to\_key, W8 is initialized with the constant bit
+mask from DIATONIC\_SCALE, which is 0x0AD5.  That value answers the
+question, for each bit number $i$ from 0 to 11, of whether a note $i$
+semitones above the root of a major scale is or is not in the scale.
+
+If a note was quantized to a scale note then it can remain there, but if it
+was quantized to a non-scale note then it must go up or down an additional
+semitone, which guarantees it will land on a scale note because every
+non-scale note is surrounded by scale notes one semitone above and below. 
+In order to make sure that it ends up as close as possible to the original
+unquantized pitch, we want this new semitone shift to be in the opposite
+direction from the rounding that was done to get the pitch to an exact
+semitone in the first place.
+
+So the code takes the quantized X-coordinate note from W6, adds the key
+variable (always zero in mode~1, but possibly nonzero when this same code is
+called from mode~0), and then calls mod\_c00, a utility routine used in
+several places that computes the remainder of the unsigned 16-bit number in
+W0 when divided by 0x0C00.  The significance of 0x0C00 (3072 decimal) is
+that it is one octave (twelve semitones) on the scale used throughout the
+Gracious Host firmware where one semitone is 0x0100.  So by reducing W0
+modulo 0x0C00, we get a number representing where W0 is within its octave,
+with the octave itself removed.
+
+The high byte of the result says how many semitones W6 was above the root of
+the current key.  That is used to choose a bit in W8 to find whether W6 was
+quantized to a scale note.  If so, W6 can be used directly as the
+scale-quantized note.  If not, then W6 is compared against abs\_x, which was
+the original unquantized pitch value, to determine which way the rounding
+went to quantize the note.  It gets adjusted one more semitone in the
+opposite direction, and under the circumstances that guarantees it will end
+up on a scale note.  The ``round in opposite direction'' operation is done
+in another star section subroutine named round\_flip.
+
+Having done all that to quantize W6 onto a scale note, the code goes through
+the same logic with W7 for the Y coordinate, and quantize\_to\_key (the code
+shared with mode~0) returns.
+
+In mode~1, the last step after quantize\_to\_key is to zero out the fourths
+and sevenths counters, so that if the user ends up switching back to mode~0,
+they will be starting with a clean slate.
+
+\section{Modes 2 and 3 (semitone and unquantized)}
+
+By the time the code for modes~2 and~3 is reached, most of the work of
+choosing notes is already done, so this code is just a few conditionals to
+distinguish between the two remaining modes and set the front-panel LED
+colours.  The code starting at do\_output expects to find the current notes
+in W6 and W7.  For semitone quantization, those registers already contain
+the right values and after setting the LED colours we can just branch to
+do\_output.  For unquantized notes in mode~3, it first copies abs\_x and
+abs\_y back into W6 and W7 and then falls through.
+
+\section{Result output}
+
+Conditionals starting at do\_output handle turning the LEDs on or off (their
+colours were already chosen earlier, by the per-mode logic) and raising or
+lowering the gate outputs.  Button~1 controls the left gate output directly. 
+The left LED goes on if buttons~1 or~3 are pressed.  Also, when the left
+button is \emph{not} pressed, the variable abs\_x gets copied into W6 --
+pitch output is unquantized when the button is not pressed.  Then the same
+logic repeats \emph{mutatis mutandis} for button~2 and the right LED and
+gate.
+
+At the bottom of the main loop, W6 and W7 contain the semitone-and-fraction
+pitch values for the X and Y coordinates, with the appropriate quantization
+if any.  The code calls NOTENUM\_TO\_DAC1 and NOTENUM\_TO\_DAC2 from
+calibration.s to send these values to the analog output jacks, and then
+loops back to driver\_loop.

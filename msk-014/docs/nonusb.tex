@@ -1,0 +1,95 @@
+% $Id: nonusb.tex 9713 2021-12-18 19:22:35Z mskala $
+
+%
+% Non-USB operation
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Non-USB operation}
+
+\begin{figure*}[b]
+{\centering
+\begin{tikzpicture}
+  \input{jackview.tex}
+%
+  \path[fill=red!90!black] (d5) circle[radius=2.50mm];
+  \path[fill=red!90!black] (d6) circle[radius=2.50mm];
+  \draw[very thick,-{Stealth[scale=1.2]}]
+    ($(j1)+(-15mm,0)$) -- ($(j1)+(-5mm,0)$);
+  \draw[very thick,-{Stealth[scale=1.2]}]
+    ($(j2)+(18mm,0)$) -- ($(j2)+(5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(d5)+(-15mm,0)$) -- ($(d5)+(-4mm,0)$);
+%  \draw[very thick,{Stealth[scale=1.2]}-]
+%    ($(d6)+(18mm,0)$) -- ($(d6)+(4mm,0)$);
+  \draw[rounded corners=4mm,very thick,dashed]
+    ($(d5)+(-4mm,-4mm)$) rectangle ($(d6)+(4mm,4mm)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j3)+(-15mm,0)$) -- ($(j3)+(-5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j4)+(18mm,0)$) -- ($(j4)+(5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j5)+(-15mm,0)$) -- ($(j5)+(-5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j6)+(18mm,0)$) -- ($(j6)+(5mm,0)$);
+%
+  \node[anchor=east] at ($(j1)+(-15mm,0)$) {V/oct CV};
+  \node[anchor=west] at ($(j2)+(18mm,0)$) {gate in};
+  \node[anchor=east] at ($(d5)+(-15mm,0)$) {red on gate};
+  \node[anchor=east] at ($(j3)+(-15mm,0)$) {quantized CV};
+  \node[anchor=west] at ($(j4)+(18mm,0)$) {envelope};
+  \node[anchor=east] at ($(j5)+(-15mm,0)$)
+    {\parbox{19mm}{unquantized oscillator}};
+  \node[anchor=west] at ($(j6)+(18mm,0)$)
+    {\parbox{15mm}{quantized oscillator}};
+\end{tikzpicture}\par}
+\caption{Jack/LED functions for non-USB mode.}\label{fig:non-usb-jacks}
+\end{figure*}
+
+The Gracious Host is meant to work with a USB device like a MIDI controller,
+but as a default, with no USB device connected, the standard firmware will
+function as a baby synth voice.  See Figure~\ref{fig:non-usb-jacks} for the
+panel jack assignments in this mode.
+
+The left CV input is volt per octave pitch, with a nominal range from 0V for
+MIDI note 36 (C two octaves below Middle C, 65.406Hz) to 5V for MIDI note
+96 (C three octaves above Middle C, 2093.004Hz).  The right CV input is for
+a gate signal (threshold approximately 1.62V).  Both LEDs will light, in red,
+when the gate is high.
+
+The left CV output is a semitone quantized version of the CV input.  The
+right CV output is an ADSR envelope with fixed parameters.  And the two
+digital outputs are square wave oscillators:  unquantized pitch on the left,
+quantized pitch on the right.
+
+\newpage
+
+The unquantized oscillator runs only while
+the gate is high, whereas the quantized oscillator runs continuously once
+started.  The concept here is that you could use the module with an external
+VCA and the quantized and envelope outputs to get sound during the decay tail, or just
+use the unquantized output directly and have a very basic synth voice in the
+Gracious Host alone.
+
+Note that the digital outputs, as usual, produce only the fixed levels of 0V
+for low and approximately 9V for high; so the square waves on these outputs
+include a DC offset of approximately 4.5V.
+
+If you connect a USB device, the module will leave this mode and attempt to
+do something appropriate to the device instead.

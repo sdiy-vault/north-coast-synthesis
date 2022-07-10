@@ -1,0 +1,79 @@
+#!/usr/bin/perl
+
+$flag='CODE';
+$scale=0;
+$pages=undef;
+$mobies=0;
+
+while (1) {
+  if ($ARGV[0] eq '--flag') {
+    shift;
+    $flag=shift;
+
+  } elsif ($ARGV[0] eq '--mobies') {
+    shift;
+    $mobies=1;
+
+  } elsif ($ARGV[0] eq '--pages') {
+    shift;
+    $pages=shift;
+
+  } elsif ($ARGV[0] eq '--scale') {
+    shift;
+    $scale=shift;
+
+  } else {
+    last;
+  }
+}
+
+$scale=($flag eq 'CODE')?1.5:1 if $scale==0;
+
+while (<>) {
+
+  if (/^\s*\d+          #    index
+       \s+(\S+)         # $1 name
+       \s+[0-9a-f]+     #    size
+       \s+([0-9a-f]+)   # $2 VMA
+       \s+([0-9a-f]+)   # $3 LMA
+       \s+[0-9a-f]+     #    file offset
+       \s+2\*\*\d+      #    alignment
+       \s+.*$flag/x) {  #    CODE or similar flag
+    if ($2 ne $3) {
+      print STDERR "VMA doesn't match LMA for section $1\n";
+    } else {
+      $code_sections{$1}=1;
+    }
+
+  } elsif (/^Contents of section (.*):/) {
+    $current_section=$code_sections{$1}?$1:undef;
+
+  } elsif ((defined $current_section)
+      && /^ ([0-9a-f]{4})(( [0-9a-f]{2,8}){1,4})  /) {
+    $addr=hex("0x$1");
+    $addr+=0x10000 if $mobies && $current_section=~/_hi$/;
+    $bytes=$2;
+    $bytes=~s/ //g;
+    for ($i=0;$i<length($bytes);$i+=2) {
+      $code_memory[($addr*$scale)+($i/2)]=hex('0x'.substr($bytes,$i,2));
+    }
+  }
+
+}
+
+for ($i=0;$i<=$#code_memory;$i++) {
+  if (defined($code_memory[$i])) {
+    print pack('C',$code_memory[$i]);
+    $page_exists[int($i/1536)*4]=1;
+  } else {
+    print pack('C',0xFF);
+  }
+}
+
+if (defined $pages) {
+  open(PAGES,">$pages");
+  for ($i=0;$i<=$#page_exists;$i++) {
+    printf PAGES ".equ __page_exists__%02x, 1\n",$i if $page_exists[$i];
+  }
+  close(PAGES);
+}

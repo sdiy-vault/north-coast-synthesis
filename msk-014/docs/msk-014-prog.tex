@@ -1,0 +1,85 @@
+% $Id: msk-014-prog.tex 9791 2022-01-24 05:15:58Z mskala $
+
+%
+% MSK 014 programmer's manual
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\documentclass{ncmanual}
+
+% \usepackage{bigstrut}
+% \usepackage{dcolumn}
+\usepackage{musicography}
+% \usepackage{rotating}
+% \usepackage{stfloats}
+\usepackage{tikz}
+
+\usetikzlibrary{arrows.meta,calc,shapes}
+
+\title{MSK~014\quad Gracious Host\\Programmer's Manual}
+\author{Matthew Skala}
+\date{\today}
+
+\newcommand{\insn}[1]{\textbf{#1}}
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{copyrightpage}
+Software documentation for the MSK~014\\
+Copyright \copyright\ 2022 Matthew Skala
+
+\GPLThreeStatement
+\end{copyrightpage}
+
+\tableofcontents
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\texdependspdfworkaround
+
+\input{introduction.tex}
+\input{onchip.tex}
+\input{offchip.tex}
+\input{buildtools.tex}
+\input{progtips.tex}
+
+\input{ledblinks.tex}
+\input{utilss.tex}
+\input{calibrations.tex}
+\input{loaders.tex}
+
+\input{firmwares.tex}
+\input{usbs.tex}
+\input{midis.tex}
+\input{testss.tex}
+
+\input{mouses.tex}
+\input{qwertys.tex}
+\input{usbmidis.tex}
+\input{usbmasss.tex}
+
+\input{glossary.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

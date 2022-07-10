@@ -1,0 +1,403 @@
+% $Id: general.tex 10137 2022-06-04 20:51:54Z mskala $
+
+%
+% MSK 013 general notes
+% Copyright (C) 2020  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~013 Middle Path Voltage-Controlled Oscillator,
+which is a module for use in a Eurorack modular synthesizer.  The module
+contains two triangle-core oscillators and a shaping circuit based on the
+Gilbert sine shaper modified for quadrature output.  The oscillators can be
+used independently as V/oct synthesizer oscillators, or synchronized to
+produce more complex timbres.  The sine shaper can be used to achieve
+through-zero phase modulation effects even though the oscillator cores
+themselves do not operate through zero.
+
+\section{Oscillator controls and connections}
+
+The front panel of the Middle Path VCO is shown in
+Figure~\ref{fig:panel-mockup}.  The two oscillator sections, which are
+called oscillator A or the \emph{master} on the left and oscillator B or the
+\emph{slave} on the right, have the same controls and connections in mirror
+image and to within engineering tolerances they should operate identically
+when used by themselves.  They differ in their normalizations and in the way
+they interact with the sync circuit.
+
+\begin{figure*}
+{\centering\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.6pt}%
+\fbox{\includegraphics{panel-mockup.pdf}}\par}
+\caption{Module front panel.}\label{fig:panel-mockup}
+\end{figure*}
+
+\subsection{Tuning knobs, coarse and fine}
+
+These knobs set the base frequency of the oscillator, which can be modified
+by applying V/oct pitch and FM input voltages.  The coarse knob covers a
+range of approximately ten octaves and the fine knob approximately half an
+octave.  The oscillator is designed to cover the entire audible spectrum,
+and these knobs correspond to that range (approximately 20Hz to 20kHz) when
+the input pitch and FM voltages are zero.
+
+\subsection{V/oct pitch input}
+
+This input controls the oscillator's frequency according to the usual
+Eurorack exponential 1.0V/octave scheme.  See the notes below regarding
+normalization of this input.
+
+It is not possible to push the oscillator much above the high end of the
+audio range.  With significant positive control voltage, the frequency will
+go as high as it can when the coarse tuning is somewhere below maximum, and
+then turning the knob further (or increasing the voltage) will not drive the
+frequency any higher.  On the other hand, with negative control voltage it
+should be possible to drive the oscillator well into the sub-audio LFO
+range, but it may not track accurately below audio frequencies, and at very
+low frequencies the triangle wave will become asymmetrical and eventually
+flatten out.  On my first prototype, the upper and lower limits for
+well-behaved oscillation were about 27kHz and three minutes per cycle
+respectively.  These limits would be expected to vary a little with
+individual modules.
+
+\subsection{FM knob and input}
+
+The FM input is an additional exponential pitch control voltage input, with
+attenuation controlled by a knob.  When the knob is turned fully clockwise,
+the sensitivity of this input is nominally 1.0V/oct, though not as
+accurately so as the main V/oct input.  With the knob at other settings, the
+sensitivity of the FM input will be less.
+
+\subsection{PWM knob and input}
+
+The PWM input and its associated knob control the pulse width of the PULS
+output.  The input control voltage from the jack socket is attenuated by the
+knob and then applied to one input of a comparator, with the oscillator TRI
+output applied to the other input.  The jack socket is normalized to the
+equivalent of a little over 5V.
+
+A control voltage patched into the jack socket directly controls the duty
+cycle of the PULS output.  The comparator used to generate the pulses is
+inverting, so the nominal range of duty cycles for control voltage ranging
+from -5V to +5V is from 100\% down to 0\% duty cycle, when the attenuator is
+turned fully clockwise.  At other settings, the modulation will be less
+sensitive, and centred on 0V = 50\%.
+
+Without a cable patched in, the PWM knob directly controls duty cycle from
+50\% at full counterclockwise down to a little past 0\% at full clockwise. 
+This control range is designed to make finding the 50\% point, for
+quadrature effects, as easy as possible; the range goes a little past 0\%
+at the other end to make sure it will be possible to turn the knob all the
+way to 0\% even in the face of small variations in oscillator amplitude.
+
+\subsection{TRI output}
+
+This is the main output from the oscillator core:  a triangle wave of
+nominally 10V peak to peak ($\pm$5V).
+
+\subsection{SQR output}
+
+This square output also comes from the oscillator core, so it should be
+quite accurately 50\% duty cycle and always synchronized with the TRI
+output: $+$5V when TRI is going up, and $-$5V when TRI is going down.
+
+\subsection{PULS output}
+
+The PULS output is a variable-width nominal $\pm$5V pulse derived from the
+TRI signal and the pulse width modulation system.  With the PWM knob turned
+fully counterclockwise, or zero PWM control voltage, the PULS output will
+have 50\% duty cycle, but because it derives from a comparator on the TRI
+signal instead of directly from the core, the PULS output will be in
+quadrature (90$^\circ$ phase difference) with the SQR output.
+
+Because the duty cycle changes with pulse width modulation and the high and
+low voltages do not, this output will have an average voltage of 0V only
+when the duty cycle is 50\%.  At other duty cycles, it will have a non-zero
+average voltage, or ``DC offset'' by some definitions.
+
+\subsection{SAW output}
+
+The SAW output is a rising sawtooth wave of nominally 10V peak to peak
+($\pm$5V) derived by waveshaping from the TRI and SQR signals.
+
+\section{Quadrature sine shaper}
+
+The Middle Path VCO's quadrature sine shaper combines oscillator outputs, or
+external inputs, to create a variety of different spectral effects.  It is a
+variation of the sine shaper disclosed by Barrie Gilbert in US Patent
+\#4,475,169A modified to produce three outputs including a quadrature pair. 
+Depending on the settings and input, this section can shape an oscillator
+output into a simple sine wave or two in quadrature; do through-zero phase
+modulation, which is identical to frequency modulation in the case of a
+sine-wave modulation input; or create a range of distortion, wavefolding,
+and imitation stereo effects.
+
+\begin{figure*}[b]
+{\centering\includegraphics[scale=1.15]{shaper-combined.pdf}\par}
+\caption{Quadrature sine shaper voltage functions.}\label{fig:shaper-combined}
+\end{figure*}
+
+Input to the shaper comes through a three-input mixer.  Then the result of
+mixing is applied to the shaper proper, which computes three sine-like
+functions of the mixed voltage.  Figure~\ref{fig:shaper-combined} shows
+idealized versions of these functions; exact voltage values on both axes
+will vary a little with component tolerances.  There are three input jacks
+which can receive patch cables; if left unpatched, the left and right input
+jacks are normalized to receive the TRI outputs of the two oscillators, and
+the centre jack receives a normalized DC voltage equivalent to an external
+input of about $+$4.5V.  Each input jack has its own knob controlling its
+contribution to the mix.
+
+It is difficult to concisely describe or predict what the shaper will
+audibly do to signals, and in musical practice it's probably best to just
+adjust it by ear, playing with the levels until the output sounds good.  In
+brief: input signals get mixed together and distorted.  There's more
+distortion, shifting to higher harmonics, as the signal levels increase; and
+more on the ``both'' output than on the ``sin'' and ``cos'' outputs.  Two or
+more signals will modulate each other.  Knowing those basics should be
+enough to get sound out of it.  But there are some additional notes on
+what's really going on from a mathematical and electronic point of view, in
+the circuit explanation and sample patch chapters later in this manual.
+
+The simplest way to use the shaper is to leave the inputs unpatched, on
+their normalized signals.  With just one oscillator input knob turned up,
+the outputs will be the triangle outputs of the corresponding oscillator
+with more or less distortion.  At very low levels the triangle comes through
+in its original shape, just attenuated.  At higher levels, the ``both''
+output will approach a sine wave; past that point, the peaks of the
+sine wave will start to fold back, creating even-harmonic distortion of the
+kind sometimes associated with vacuum tubes.  At even higher levels, the
+distortion turns into full wave-folding as the spectrum shifts to higher and
+higher harmonics.
+
+With both oscillator inputs turned up, harmonics of both show up in the
+output, but also intermodulation products between them.  If one oscillator
+is at a much lower frequency then the other, the higher-frequency oscillator
+is effectively the carrier and the lower-frequency one is the modulator, in
+a through-zero phase modulation effect.  In the default patching this is
+triangle phase modulation of a triangle wave, which produces a somewhat
+broader spectrum than the original Chowning-type sine-modulating-sine
+through-zero effect.
+
+To create a true sine-wave carrier, patch the carrier oscillator's sawtooth
+output into the shaper instead of using the triangle normalization, and then
+adjust the carrier level to get as pure a sine wave as possible before
+applying modulation either from an external signal or the other oscillator. 
+This will be a low level for the carrier input; the modulator signal would
+usually be a lower frequency and higher level, in order to drive the carrier
+backwards and achieve through-zero.  To achieve a true sine wave for the
+modulator as well would require using an external sine wave as input, but
+the normalized triangle wave is spectrally very close.
+
+The ``sin'' and ``cos'' outputs are 90$^\circ$ apart in the voltage/voltage
+function, but exactly what that means in terms of the sound may be
+complicated.  It's interesting to treat them as ``left'' and ``right''
+stereo channels; listeners' ears will pick up the phase differences as
+different physical locations for different spectral components.  These two
+signals can also be considered as two less-distorted (lower modulation
+index) versions of what comes out of the ``both'' output.
+
+To get two true sine waves 90$^\circ$ apart from the quadrature shaper,
+patch an oscillator's \emph{sawtooth} output into the shaper instead of
+using the normalization, and then adjust the level to make the sine waves
+spectrally pure.  In this case the ``both'' output will also produce a sine
+wave, at twice the frequency.  All three outputs will have small glitches
+created by the sawtooth's reset time, but these should be at sufficiently
+high ultrasonic frequencies not to present a problem.
+
+Note that the outputs of the sine shaper may go to about $\pm$8V if it is
+driven beyond the range of its sine functions.  Under those conditions the
+theoretical ideal of its spectral behaviour will break down and the
+distortion will become significantly harsher.  At input levels within the
+sine-wave region, its output should be similar to levels of the oscillator
+outputs, around $\pm$5V or maybe as much as $\pm$5.5V.
+
+\section{Sync mode}
+
+The SYNC toggle switch has three positions:  ``soft,'' ``firm,'' and an
+unlabelled off position in the middle.  With sync turned off, the two
+oscillator cores function independently.  But in either of the other two
+modes, pulses from the master core are used to modify the operation of the
+slave core.  Sync forces the slave's output spectrum to be harmonically
+related to the master frequency, but with the details of the spectrum
+defined by the free-running frequency of the slave.  It's a popular feature
+for constructing complex musical timbres.
+
+In ``soft'' mode, the slave oscillator is forced into the rising direction
+on every rising edge of the master's SQR output, which corresponds to the
+lowest point in the master triangle waveform.  This form of sync will
+eventually force the slave to force to a multiple or submultiple of the
+master frequency, but it may take a perceptible time to lock.
+
+In ``firm'' mode, the slave oscillator is forced to the same direction as
+the master on every edge, in either direction, of the master's PULS output. 
+That means the exact effect of firm sync will vary depending on the pulse
+width and PWM of the master oscillator.  This mode usually creates a tighter
+lock, with the slave moving to match the master faster when the frequency
+changes.
+
+Sync pulses are applied directly to the Schmitt trigger in the slave's core,
+which is also the source of the slave's SQR output; and there is a
+refractory period after each sync pulse during which the slave's normal
+direction-switching will not function.  As a result, both the SQR and TRI
+outputs of the slave may go outside their usual voltage range when sync is
+activated.  DC offset may also show up at some settings; for instance, with
+master frequency significantly higher than slave frequency, the slave's
+triangle output will be forced to stay near its upper limit most of the
+time.
+
+\section{Specifications}
+
+The nominal input impedance is at least 100k$\Omega$ for all inputs.  When
+inputs are normalized together, they appear in parallel -- so, for instance,
+the master pitch CV will have 50k$\Omega$ impedance if it also drives the
+slave through the standard normalization.  Nominal output impedance is
+at most 1k$\Omega$ for all outputs.
+
+Any voltage between the power supply rails (nominally $\pm$12V) is safe for
+the module, on any input; output voltages are limited by the capabilities of
+the op amps to about $\pm$10V and will clip if the inputs are driven
+sufficiently hard.  The nominal output voltage range for all outputs, and
+expected range for all inputs in normal use, is nominally $\pm$5V.  The
+exact maximum and minimum output voltages may vary but will often be
+slightly wider, such as $\pm$5.5V.
+
+Briefly shorting any output to any fixed voltage at or between the power
+rails, or shorting two to each other, should be harmless to the module. 
+Note that ``between the power rails'' does mean it is safer to feed voltages
+into the module when power is applied, since without power, both power rails
+will be at zero.  Patching the MSK~013's output into the output of another
+module should be harmless to the MSK~013, but doing that is not recommended
+because it is possible the other module may be harmed.
+
+This module contains series reverse protection diodes and is unlikely to be
+damaged by a reverse power connection, but because it uses a 16-pin power
+connection there are more kinds of misconnection possible than pure reversal
+of the main power rails.  It is possible that there could be a short
+circuit, more likely damaging to the power supply than to the module, if the
+power is misconnected.  The connector on the module is polarized and
+unlikely to be misconnected, but some caution is still recommended when
+connecting the cable at the bus board.
+
+The maximum current demand of this module in normal operation is 75mA from
+the +12V supply and 105mA from the -12V supply.  Placing an unusually heavy
+load on the outputs (for instance, with so-called passive modules or
+output-to-output patching) can increase the power supply current beyond
+those levels.
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and
+PCB footprint libraries for Kicad.  Kicad doesn't normally keep dependencies
+like symbols inside a project directory, so on my system, these files
+actually live in a central directory shared by many projects.  As a result,
+upon unpacking the ZIP file you may need to do some reconfiguration of the
+library paths stored inside the project files, in order to allow the symbols
+and footprints to be found.  Also, this directory will probably contain some
+extra bonus symbols and footprints not actually used by this project,
+because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+The enclosed PCB design is for two boards, each
+4.60$''$\linebreak[0]$\times$\linebreak[0]4.20$''$ or
+116.84mm\linebreak[0]$\times$\linebreak[0]106.68mm.
+The two boards are intended to
+mount in a stack parallel to the Eurorack panel, held together with M3
+machine screws and male-female hex standoff hardware.  See
+Figure~\ref{fig:panel-stack}.  Including 12mm of clearance for the power
+connector and cable, the module should fit in 36mm of depth measured from the
+back of the front panel.
+
+\begin{figure}
+{\centering
+\begin{tikzpicture}[scale=0.1]
+  \path[draw=black,dashed,thick] (24.2,-58.42) rectangle (36.2,-40.00);
+  \path[draw=black,fill=black!30!white] (-2.0,-64.25) rectangle (0,64.25);
+  \path[draw=black,fill=white] (0,-57.29) rectangle (10,-51.29);
+  \path[draw=black,fill=white] (0,51.29) rectangle (10,57.29);
+  \path[draw=black,fill=blue!50!white] (10,-58.42) rectangle (11.6,58.42);
+  \path[draw=black,fill=white] (11.6,-57.29) rectangle (22.6,-51.29);
+  \path[draw=black,fill=white] (11.6,51.29) rectangle (22.6,57.29);
+  \path[draw=black,fill=blue!50!white] (22.6,-58.42) rectangle (24.2,58.42);
+  \path[draw=black,fill=white] (24.2,-57.29) rectangle (26.2,-51.29);
+  \path[draw=black,fill=white] (24.2,51.29) rectangle (26.2,57.29);
+  \path[draw=black,fill=black!10!white] (26.2,-55.79) rectangle (28.2,-52.79);
+  \path[draw=black,fill=black!10!white] (26.2,52.79) rectangle (28.2,55.79);
+  \node at (5,66) {\parbox{10mm}{\centering \small 10mm standoff}};
+  \node at (17.1,66) {\parbox{11mm}{\centering \small 11mm standoff}};
+  \node at (-6,64) {\parbox{12mm}{\small 2mm front panel}};
+  \node at (16.4,75) {\small 2$\times$ 1.6mm PCBs};
+  \draw[>=latex',->,very thick] (10.8,73) -- (10.8,59.5);
+  \draw[>=latex',->,very thick] (23.4,73) -- (23.4,59.5);
+  \node at (35,-29)
+    {\parbox{17mm}{\centering \small
+     12mm clearance for power connector and cable}};
+  \draw (36.2,-58.42) -- (36.2,-64);
+  \draw[>=latex',<->,thick] (0,-62) -- (36.2,-62);
+  \node[fill=white] at (18.0,-62) {\small $\approx$36mm depth};
+\end{tikzpicture}\par}
+\caption{Assembled module, side view.}\label{fig:panel-stack}
+\end{figure}
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others -- for instance, as a built hardware device -- then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{http://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+The latest version of this document and the associated source files can be
+found at that Web site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

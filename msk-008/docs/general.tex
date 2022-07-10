@@ -1,0 +1,294 @@
+% $Id: general.tex 5679 2017-10-13 15:24:08Z mskala $
+
+%
+% MSK 008 general notes
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~008 Dual VC Octave Switch, which is a control
+voltage processing module for use in a Eurorack modular synthesizer.  Each
+of the two channels in the module contains a specialized quantizer, a toggle
+switch that adds or subtracts a one-volt offset, and a precision voltage
+adder with optional subtraction function.  The module's main function is to
+transpose a melody represented by a control voltage, but it can also be used
+for several other purposes.
+
+\section{Specifications}
+
+The impedance of the quantizer inputs is high, several hundred kiloohms at
+least, depending on the setting of the offset switch.  For the other inputs,
+the impedance is 100k$\Omega$ per input; when a signal drives two
+inputs through normalization, it will see a 50k$\Omega$ impedance.  The
+impedance of the outputs is very low, with current limited by 1k$\Omega$
+resistors inside the op amp feedback loops.
+
+Any input voltage between the power supply rails (nominally
+$\pm$12V) is safe for the module; output voltages are limited by the
+capabilities of the op amps to about $\pm$10V and will clip if the input
+voltages sum to a result outside that range.
+
+Shorting any input or output to any fixed voltage at or between the power
+rails, or shorting two to each other, should be harmless to the module.
+Patching the MSK~008's output into some other module's output should be
+harmless to the MSK~008, but doing that is not recommended because it is
+possible the non-MSK~008 module may be harmed.
+
+Although primarily intended to operate on DC control voltages, this module
+should be usable at all audio frequencies.  Ultrasonic frequencies are
+rolled off to ensure op amp stability.
+
+This module (assuming a correct build using the recommended components) is
+protected against reverse power connection.  It will not function with the
+power reversed, but will not cause or suffer any damage.  Some other kinds
+of power misconnection may possibly be dangerous to the module or the power
+supply.
+
+In normal operation the peak current demand of this module is 45mA from the
++12V supply and 50mA from the -12V supply.  Placing a heavy
+load on the outputs (for instance, with so-called passive modules) will
+increase the power supply current.
+
+\section{Voltage modification}
+
+This circuit was designed for $\pm$12V power and will not work properly on
+$\pm$15V power unless modified.  To modify it for $\pm$15V, as well as using
+the proper power connector and making sure all components are rated for the
+increased voltage, make the following resistor changes:
+\begin{itemize}
+  \item change R6 and R7 (voltage regulator ballast) from 1.8k$\Omega$ to
+    2.4k$\Omega$;
+  \item change R13 and R14 (quantizer input weights) from 75k$\Omega$ to
+    62k$\Omega$;
+  \item change R49 and R51 (LED current control) from 1.2k$\Omega$ to
+    1.8k$\Omega$; and
+  \item change R50, R52, R53, and R54 (LED current control) from
+    910$\Omega$ to 1.2k$\Omega$.
+\end{itemize}
+I have calculated but not tested these resistor changes.
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and
+PCB footprint libraries for Kicad.  Kicad doesn't normally keep dependencies
+like symbols inside a project directory, so on my system, these files
+actually live in a central directory shared by many projects.  As a result,
+upon unpacking the ZIP file you may need to do some reconfiguration of the
+library paths stored inside the project files, in order to allow the symbols
+and footprints to be found.  Also, this directory will probably contain some
+extra bonus symbols and footprints not actually used by this project,
+because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+The enclosed PCB design is for two boards, each
+3.90$''$\linebreak[0]$\times$\linebreak[0]1.50$''$, or
+99.06mm\linebreak[0]$\times$\linebreak[0]38.10mm.  They are intended to
+mount in a stack parallel to the Eurorack panel, held together with M3
+machine screws and male-female hex standoff hardware.  See
+Figure~\ref{fig:panel-stack}.  Including 18mm of clearance for the mated
+power connector, the module should fit in 43mm of depth measured from the
+back of the front panel.
+
+\begin{figure}
+{\centering
+\begin{tikzpicture}[scale=0.1]
+  \path[draw=black,dashed,thick] (24.2,-46.95) rectangle (42.2,-26.95);
+  \path[draw=black,fill=black!30!white] (-2.0,-64.25) rectangle (0,64.25);
+  \path[draw=black,fill=white] (0,-47.45) rectangle (10,-41.45);
+  \path[draw=black,fill=white] (0,47.45) rectangle (10,41.45);
+  \path[draw=black,fill=blue!50!white] (10,-49.53) rectangle (11.6,49.53);
+  \path[draw=black,fill=white] (11.6,-47.45) rectangle (22.6,-41.45);
+  \path[draw=black,fill=white] (11.6,47.45) rectangle (22.6,41.45);
+  \path[draw=black,fill=blue!50!white] (22.6,-49.53) rectangle (24.2,49.53);
+  \path[draw=black,fill=white] (24.2,-47.45) rectangle (26.2,-41.45);
+  \path[draw=black,fill=white] (24.2,47.45) rectangle (26.2,41.45);
+  \path[draw=black,fill=black!10!white] (26.2,-45.95) rectangle (28.2,-42.95);
+  \path[draw=black,fill=black!10!white] (26.2,45.95) rectangle (28.2,42.95);
+  \node at (5.0,53) {\parbox{10mm}{\centering \small 10mm standoff}};
+  \node at (17.1,53) {\parbox{11mm}{\centering \small 11mm standoff}};
+  \node at (13,64) {\small 2mm front panel};
+  \node at (18.4,60.5) {\small 2$\times$ 1.6mm PCBs};
+  \draw[>=latex',->,very thick] (10.8,58.7) -- (10.8,50.53);
+  \draw[>=latex',->,very thick] (23.4,58.7) -- (23.4,50.53);
+  \node at (33.2,-36.95)
+    {\parbox{17mm}{\centering \small 18mm clearance for mated power connector}};
+  \draw (42.2,-48) -- (42.2,-64);
+  \draw[>=latex',<->,thick] (0,-56) -- (42.2,-56);
+  \node[fill=white] at (21.5,-56) {\small $\approx$43mm depth};
+\end{tikzpicture}\par}
+\caption{Assembled module, side view.}\label{fig:panel-stack}
+\end{figure}
+
+\section{Functional description}
+
+Users will probably want to think about this module in terms of the
+applications in which it is \emph{used}: octave switching, wavefolding,
+mid-side encoding, and so on.  Even the name ``octave switch'' refers to one
+application, and some of the others are described in the section on suggested
+patches.  But all these applications, and those yet to be invented, can be
+understood in terms of what the module \emph{actually does}, as described
+here without direct reference to applications.  See the block diagram in
+Figure~\ref{fig:block-diagram}.
+
+\begin{figure*}
+{\centering
+\begin{tikzpicture}[scale=2]
+  \draw[thick] (-3.7,0.3) -- (-3,0.3) -- (-3,1);
+  \draw[thick] (-4,1) -- (0,1) -- (0,-1) -- (-2,-1);
+  \draw[thick] (-2,0) -- (1,0);
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-3.6,0.1) {};
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-3.6,0.5) {};
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-3.2,0.3) {};
+  \node at (-3.9,0.5) {$+1$};
+  \node at (-3.9,0.3) {$\phantom{+}0$};
+  \node at (-3.9,0.1) {$-1$};
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-4,1) {};
+  \node at (-4.35,0.975) {QUA}; 
+  \node[circle,draw,fill=white,inner sep=1] at (-3,1) {\LARGE$+$};
+  \node[rectangle,draw,fill=white] at (-1.5,1) {\begin{tabular}{c}
+      quantize\\$\{-2,-1,0,1,2\}$
+    \end{tabular}};
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-2,0) {};
+  \node at (-2.35,0) {CV1}; 
+  \node[isosceles triangle,draw,fill=white,minimum height=32,
+        isosceles triangle apex angle=60] at (-1,0) {};
+  \node at (-1,0) {$1$};
+  \node[circle,draw,fill=white,inner sep=1] at (0,0) {\LARGE$+$};
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (1,0) {};
+  \node at (1.35,0) {OUT}; 
+  \node[circle,draw,fill=white,minimum height=6.0,inner sep=0]
+    at (-2,-1) {};
+  \node at (-2.35,-1) {CV2}; 
+  \node[isosceles triangle,draw,fill=white,minimum height=32,
+        isosceles triangle apex angle=60] at (-1,-1) {};
+  \node at (-1,-1) {$\pm1$};
+\end{tikzpicture}\par}
+\caption{Block diagram (one channel).}\label{fig:block-diagram}
+\end{figure*}
+
+There are two channels.  Each channel has a QUA input, which goes into a
+quantizer that rounds it to the nearest whole volt in the range
+-2V\ldots{}+2V.  So any input voltage from -12V to -1.5V will round to -2V;
+any input voltage from -1.5V to -0.5V will round to -1V; any input voltage
+from -0.5V to +0.5V will round to 0V; and so on.  There is also a
+three-position toggle switch, which can add or subtract one volt at the
+quantizer \emph{input}; the quantizer output remains in the range
+-2V\ldots{}+2V.
+
+Although the quantizer output voltages are intended to be
+accurate (typically 1mV error with decent adjustment; this specification is
+not guaranteed), the input thresholds are not meant to be very accurate. 
+Whole volts will round correctly, but the exact positions of the boundaries
+may not be exact half-volt values, and may shift with the position of the
+toggle switch.  Allowing some tolerance on these was a necessary trade-off
+to fit the module in 8HP with the desired technology.
+
+When the quantizer output (not the final output of the channel) is positive,
+whether +1V or +2V, the channel's LED glows red; when it is negative, green;
+when zero, the LED remains dark.
+
+The precision adder sums the quantizer output, the CV1 input, and either the
+CV2 input or the negative of the CV2 input.  The result of the summation
+appears at the channel output.
+
+Whether a channel adds or subtracts the CV2 input is determined by a jumper
+built into the circuit board.  The default, standard for our assembled
+modules and any built from kits without modifying the boards, is for the
+left channel (as viewed from the front when the module is installed) to add
+and the right channel to subtract.  This selection for a channel could be
+changed during build by cutting the jumper trace and replacing it in the
+opposite direction with a blob of solder.  A more ambitious project might
+cut the trace and wire an SPDT switch to the three contact points
+provided, allowing front-panel selection between the two modes.  But North
+Coast Synthesis Ltd.\ has no current plans to market an ``expander'' for
+doing that; it is left as an idea for more advanced hobbyists to pursue on
+their own.
+
+The CV1 and CV2 inputs of each channel, but not the QUA input, are
+normalized to and from the corresponding inputs on the other channel. 
+Plugging a cable into CV1 on either channel will drive both CV1 inputs if
+there is no cable plugged into the other CV1, and the same for CV2.  Thus,
+in a default jumper configuration, plugging cables into CV1 and CV2 on one
+channel will give the sum and difference of the two input voltages on the
+two channel outputs.
+
+Each QUA input is normalized to 0V.  Plugging a cable into one of the QUA
+inputs with nothing on the other end breaks this normalization and leaves
+the comparator inputs to float; that may have unexpected effects. 
+Typically, the unconnected input will drive the quantizer to $+$2V with the
+toggle in the 0 or $+$1 positions and $-$2V with the toggle in the $-$1
+position, but that behaviour is not guaranteed and half-patching the input
+this way is not recommended.  Some module ``trigger'' outputs, notably those
+on the Befaco Rampage, do not produce any specific voltage but expose a
+high impedance like unpatched cables when they are not triggering; those
+may produce unexpected results if patched into the MSK~008's QUA input.
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others---for instance, as a built hardware device---then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{http://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+The latest version of this document and the associated source files can be
+found at that Web site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

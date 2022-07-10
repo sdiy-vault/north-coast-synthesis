@@ -1,0 +1,284 @@
+% $Id: general.tex 6473 2018-11-30 15:28:26Z mskala $
+
+%
+% MSK 009 general notes
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~009 Coiler Multi-Mode Filter and Rectifier,
+which is a module for use in a Eurorack modular synthesizer.  The module
+contains a voltage-controlled two-pole state variable filter
+implemented using inductors (coils, hence the name) as the main
+energy-storing components in the integrators.  It also uses capacitors,
+which have their main effect at bass frequencies, with the filter's
+behaviour shading from capacitor-based to inductor-based between about 500Hz
+to 2kHz.  There are separate outputs for high-pass, band-pass, and low-pass
+transfer functions, and two audio inputs, one of which goes through a
+full-wave rectifier before being fed into the filter.
+
+\section{Controls and connections}
+
+The front panel of the module is shown in Figure~\ref{fig:panel-mockup}.
+
+\begin{figure}
+{\centering\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.6pt}%
+\fbox{\includegraphics{panel-mockup.pdf}}\par}
+\caption{Module front panel.}\label{fig:panel-mockup}
+\end{figure}
+
+\subsection{TUNE knob}
+
+This knob adjusts the overall frequency of the filter, for all three
+outputs.  Its setting is added to the control voltage inputs.  It should
+cover the entire usable range of the filter, with a little bit of excess at
+the low end to allow for ``closing'' the filter more completely when using
+voltage control in a low-pass gate patch.
+
+\subsection{res knob}
+
+This sets the ``resonance'' of the filter by attenuating one of the feedback
+paths.  Counterclockwise for a flatter response curve, clockwise for a
+sharper peak.  Near the clockwise maximum resonance, the filter will
+oscillate.  Because of the way the inductors respond differently to phase at
+different points on the audio spectrum, this knob's effect interacts with
+the current frequency setting; the height of the resonance peak and the
+point at which oscillation begins will change with the cutoff frequency,
+creating a wide range of varying-timbre effects.
+
+\subsection{att knob}
+
+This is an attenuator for the CV2 input---the lower of the two CV inputs, to
+which this knob is joined by the zigzag resistor line in the panel art,
+symbolizing attenuation.  With the knob fully clockwise the sensitivity of
+this input is approximately 1V/octave, the same as the unattenuated input. 
+At lower settings, the CV2 input is less sensitive.
+
+\subsection{IN inputs}
+
+Audio inputs to the filter.  The upper input, marked with a diode symbol and
+the notation \textbf{fw rect}, is subjected to full-wave rectification
+(positive and negative voltages translated into their absolute values)
+before being applied to the filter.  The lower input is a direct connection. 
+Both inputs may be used at once; their effects are summed.
+
+The rectified input includes a phase inverter (both positive and negative
+voltages are translated into \emph{negative}) to cancel out the
+naturally-occuring phase inversion between the
+input and LP output in this filter topology.  As a result, if you feed an
+audio signal into the rectified input with the filter cutoff significantly
+below the frequency of the audio, it will be rectified and filtered into a
+\emph{positive} voltage tracking the overall amplitude of the input signal. 
+This way the module can be used as an envelope follower.
+
+The inputs can accept any voltages between the module's power rails ($-$12V
+to $+$12V) without damage.  The module my be overdriven, creating
+significant distortion, with inputs beyond about $\pm$5V.
+
+\subsection{CV inputs}
+
+Exponential control voltages for filter cutoff frequency.  The upper socket
+(CV1) has a nominal sensitivity of 1V/octave; but the tracking of this
+filter is not meant to be very accurate, and it cannot be made highly
+accurate because of the somewhat unpredictable properties of the inductors. 
+Tracking will differ in different parts of the audio spectrum.  The
+CV-processing circuit is partially temperature-compensated, with
+zeroth-order ``offset'' compensation but not first-order ``tracking''
+compensation.  The lower socket's (CV2) sensitivity is adjustable with the
+att knob, to a maximum of the same sensitivity as CV1.  The CV1 input,
+attenuated CV2 input, and TUNE knob setting are all summed to produce the
+control value for the filter core.
+
+Both CV inputs can accept voltages anywhere between the module's power rails
+($-$12V to $+$12V) without damage.  Which voltages are useful depends on the
+patch and the setting of the TUNE knob, but a typical user might aim for 0V
+to 5V.
+
+\subsection{HP, BP, and LP outputs}
+
+These are the three outputs of the filter core:  high-pass, band-pass, and
+low-pass.  Because this is a two-pole filter, the asymptotic slopes of the
+response curves are 12dB/octave for the high-pass and low-pass, and
+6dB/octave on each of two slopes for the band-pass.
+
+All three outputs are active simultaneously, driven by the combined input
+from the two IN jack sockets.  The phase relationships among the three
+outputs will change with frequency as the filter shifts between using its
+capacitors and its inductors; that means mixing outputs to produce other
+filter functions (such as notch filtering) may produce results that sound
+good, but they are unlikely to be strong on measures like stopband
+attenuation.
+
+Voltage levels on the audio outputs will normally be similar to the voltage
+levels on the inputs, with the maximum possible voltage limited by possible
+clipping in the op amp chips at around $\pm$10V.  Output level at maximum
+oscillation will be about $\pm$5V.  At the lowest resonance setting, the BP
+output will be a little quieter than the other two, an effect which tends to
+disappear at higher resonance.
+
+\section{Specifications}
+
+The nominal input impedance is 100k$\Omega$ for all inputs except the
+rectifier input, which varies between 50k$\Omega$ and 100k$\Omega$.  Nominal
+output impedance is 1k$\Omega$ for all outputs.
+
+Any voltage between the power supply rails (nominally $\pm$12V) is safe for
+the module, on any input; output voltages are limited by the capabilities of
+the op amps to about $\pm$10V and will clip if the inputs are driven
+sufficiently hard.  Distortion resulting from limiting in internal feedback
+paths may show up before the outputs actually clip.
+
+The circuit is DC-coupled throughout; as a result, it can operate at very
+low frequencies, but small DC offsets may appear on the outputs.  Trimmers
+are provided for minimizing offset effects.
+
+Briefly shorting any input or output to any fixed voltage at or between the
+power rails, or shorting two to each other, should be harmless to the
+module.  Patching the MSK~009's output into some other module's output
+should be harmless to the MSK~009, but doing that is not recommended because
+it is possible the non-MSK~009 module may be harmed.
+
+This module (assuming a correct build using the recommended components) is
+protected against reverse power connection.  It will not function with the
+power reversed, but will not cause or suffer any damage.  Some other kinds
+of power misconnection may possibly be dangerous to the module or the power
+supply.
+
+In normal operation the maximum current demand of this module is 25mA from
+the +12V supply and 25mA from the -12V supply.  Placing an unusually heavy
+load on the outputs (for instance, with so-called passive modules) can
+increase the power supply current beyond those levels.
+
+\section{Voltage modification}
+
+This circuit is designed for $\pm$12V power.  It should work acceptably on
+$\pm$15V power without modification, assuming all components are rated for
+the increased voltage, but some current levels and adjustment ranges are
+related to the power supplies and so just applying $\pm$15V power with no
+changes may not give optimal results.  In particular, I would expect doing
+that to create ``dead zones'' at the ends of the tuning control range.  My
+suggestion if using $\pm$15V power would be to increase all four
+220k$\Omega$ resistors (R5, R8, R19, and R29) to 270k$\Omega$; that should
+restore the intended current levels and adjustment ranges.
+
+I have calculated but not tested these resistor changes.
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and
+PCB footprint libraries for Kicad.  Kicad doesn't normally keep dependencies
+like symbols inside a project directory, so on my system, these files
+actually live in a central directory shared by many projects.  As a result,
+upon unpacking the ZIP file you may need to do some reconfiguration of the
+library paths stored inside the project files, in order to allow the symbols
+and footprints to be found.  Also, this directory will probably contain some
+extra bonus symbols and footprints not actually used by this project,
+because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+The enclosed PCB design is for two boards.  Board 1 is
+3.90$''$\linebreak[0]$\times$\linebreak[0]1.50$''$ or
+99.06mm\linebreak[0]$\times$\linebreak[0]38.10mm.  Board 2 is a little
+shorter,
+3.40$''$\linebreak[0]$\times$\linebreak[0]1.50$''$ or
+86.36mm\linebreak[0]$\times$\linebreak[0]38.10mm.
+The two boards are intended to
+mount in a stack parallel to the Eurorack panel, held together with M3
+machine screws and male-female hex standoff hardware.  See
+Figure~\ref{fig:panel-stack}.  Including 18mm of clearance for the mated
+power connector, the module should fit in 46mm of depth measured from the
+back of the front panel.
+
+\begin{figure}
+{\centering
+\begin{tikzpicture}[scale=0.1]
+  \path[draw=black,dashed,thick] (27.2,-44.14) rectangle (45.2,-24.14);
+  \path[draw=black,fill=black!30!white] (-2.0,-64.25) rectangle (0,64.25);
+  \path[draw=black,fill=white] (0,-30.48) rectangle (13,-24.48);
+  \path[draw=black,fill=white] (0,30.48) rectangle (13,24.48);
+  \path[draw=black,fill=blue!50!white] (13,-49.53) rectangle (14.6,49.53);
+  \path[draw=black,fill=white] (14.6,-30.48) rectangle (25.6,-24.48);
+  \path[draw=black,fill=white] (14.6,30.48) rectangle (25.6,24.48);
+  \path[draw=black,fill=blue!50!white] (25.6,-45.72) rectangle (27.2,40.64);
+  \path[draw=black,fill=white] (27.2,-30.48) rectangle (29.2,-24.48);
+  \path[draw=black,fill=white] (27.2,30.48) rectangle (29.2,24.48);
+  \path[draw=black,fill=black!10!white] (29.2,-28.98) rectangle (31.2,-25.98);
+  \path[draw=black,fill=black!10!white] (29.2,28.98) rectangle (31.2,25.98);
+  \node at (6.5,38) {\parbox{10mm}{\centering \small 13mm standoff}};
+  \node at (20.1,38) {\parbox{11mm}{\centering \small 11mm standoff}};
+  \node at (13,64) {\small 2mm front panel};
+  \node at (21.4,58.5) {\small 2$\times$ 1.6mm PCBs};
+  \draw[>=latex',->,very thick] (13.8,56.7) -- (13.8,50.53);
+  \draw[>=latex',->,very thick] (26.4,56.7) -- (26.4,41.64);
+  \node at (36.2,-34.14)
+    {\parbox{17mm}{\centering \small 18mm clearance for mated power connector}};
+  \draw (45.2,-48) -- (45.2,-64);
+  \draw[>=latex',<->,thick] (0,-56) -- (45.2,-56);
+  \node[fill=white] at (23.0,-56) {\small $\approx$46mm depth};
+\end{tikzpicture}\par}
+\caption{Assembled module, side view.}\label{fig:panel-stack}
+\end{figure}
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others---for instance, as a built hardware device---then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{http://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+The latest version of this document and the associated source files can be
+found at that Web site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

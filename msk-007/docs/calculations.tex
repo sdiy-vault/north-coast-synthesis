@@ -1,0 +1,436 @@
+% $Id: calculations.tex 5860 2018-01-23 22:23:18Z mskala $
+
+%
+% calculations for the MSK 007 filter curve
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Filter curve calculations}\label{cha:calculations}
+
+This chapter goes through the calculations for choosing the component values
+and calibration data for the MSK 007's Musical Near-Elliptic (MNE) Lowpass
+response curve, which is the first and default response for the filter and
+corresponds to the silkscreened markings on the circuit boards. 
+Understanding these calculations is not necessary for building or using the
+filter; they are provided for reference, education, and to support designing
+other response curves in the future.  Calculations are usually given using
+as many decimal places as the input values allow, up to a maximum of eight,
+even though the actual hardware cannot be built to such precision.
+
+\section{Transfer function}
+
+The poles and zeroes were chosen by starting with those of an elliptic
+filter that would have low and high cutoff frequencies 1 and 2.3
+respectively, with 3dB of passband ripple and a stopband attenuation of
+70dB; observing that it has response peaks near frequencies $\tfrac{2}{3}$
+and 1 and nulls near 2 and 3, which are in nice harmonic relations to each
+other; and then manually choosing the poles and zeroes to make those
+relations near-exact.  The resulting selections of poles and zeroes are as
+shown in Figure~\ref{fig:polezero}.
+
+\begin{figure}
+\hspace*{\fill}\begin{tikzpicture}[>=latex']
+  \node at (0,4.5) {Poles: $-0.239$, $-0.178\pm0.680j$, $-0.060\pm1.022j$};
+  \node at (0,4.0) {Zeroes: $\pm2j$, $\pm3j$};
+  \draw[->] (-2,0) -- (2,0);
+  \node at (2,-0.3) {$\Re$};
+  \draw[->] (0,-3.5) -- (0,3.5);
+  \node at (0.3,3.5) {$\Im$};
+  \draw (0,0) circle[radius=1];
+  \foreach \y in {-3,-2,2,3} {
+    \draw (0,\y) circle[radius=0.1];
+  }
+  \foreach \x/\y in
+    {-0.239/0,-0.178/-0.680,-0.178/0.680,-0.060/-1.022,-0.060/1.022} {
+    \draw (\x-0.1,\y-0.1) -- (\x+0.1,\y+0.1);
+    \draw (\x-0.1,\y+0.1) -- (\x+0.1,\y-0.1);
+  }
+\end{tikzpicture}\hspace*{\fill}\par
+\caption{Poles and zeroes of the filter response}\label{fig:polezero}
+\end{figure}
+
+The Bode plot is in Figure~\ref{fig:bodeplot}, with a curve showing the
+phase and some notable points marked.  Note that the frequency at which the
+module will oscillate (with an inverting amplifier providing just enough
+feedback) is the one where 180$^\circ$ phase shift occurs, namely 0.7300 on
+the normalized scale of the plot.  The highest-frequency peak at normalized
+frequency $1$ is basically the cutoff of the lowpass action, and is at
+$1.3699$ of the oscillation frequency.
+
+\begin{figure*}
+{\hspace*{\fill}\includegraphics{mnelp-bode.eps}\hspace*{\fill}\par}
+\begin{align*}
+  H(s) &=
+    \frac{(s^2+4)(s^2+9)}{(s+0.239)(s^2+0.356s+0.494084)(s^2+0.120s+1.048084)}
+  \\
+  &=
+  \frac{s^4+13s^2+36}{s^5+0.715s^4+1.69865s^3+0.8112s^2+0.62119s+0.12376413}
+  \\
+  \hat{H}(s) &= \frac{0.02777778s^4+0.36111111s^2+1}{8.07988550s^5+
+    5.77711814s^4+13.72489751s^3+6.55440312s^2+5.01914408s+1}
+\end{align*}
+\caption{Bode plot and formulas for the filter response}\label{fig:bodeplot}
+\end{figure*}
+
+The transfer function $H(s)$ is as shown in Figure~\ref{fig:bodeplot}.
+Normalizing to make the constant terms 1 (that is, dividing the numerator
+and denominator each by their constant terms, 36 and 0.12376413 respectively)
+gives the normalized transfer function $\hat{H}(s)$, also shown in the
+figure.
+
+\section{Leapfrog design procedure}
+
+Now we follow the procedure of Sun\footnote{Yichuang Sun, 2006, Synthesis
+of Leap-Frog Multiple Loop Feedback OTA-C Filters, IEEE Transactions on
+Circuits and Systems, Part 2: Express Briefs, 53, 9.} for a fifth-order
+output summer type leapfrog filter.  In his notation, the coefficients of
+the transfer function are:
+\begin{gather*}
+  A_5=0 \quad A_4=0.02777778 \quad A_3=0 \\
+  A_2=0.36111111 \quad A_1=0 \quad A_0=1 \\
+  B_5=8.07988550 \quad B_4=5.77711814 \\
+  B_3=13.72489751 \quad B_2=6.55440312 \\
+  B_1=5.01914408 \quad B_0=1 \, .
+\end{gather*}
+
+First we compute the rates for the integrators (design formulas from
+Sun's equation display (25), for a fifth-order transfer function).  The
+units of measure (not shown) are technically seconds; the numbers
+represent the time required for the integrator to charge
+from zero to its input voltage if presented with a constant input voltage,
+when the filter is tuned to the normalized frequency 1 radian per second.
+\begin{align*}
+  \tau_5 &=\frac{B_5}{B_4} \\
+    &= 1.39860140 \\
+  \tau_4 &= \frac{B_4}{B_3-B_2\tau_5} \\
+    &= 1.26747916 \\
+  \tau_3 &= \frac{B_3-B_2\tau_5}{B_2-(B_1-\tau_5)\tau_4} \\
+    &= 2.31905231 \\
+  \tau_2 &= \frac{B_2-(B_1-\tau_5)\tau_4}{B_1-\tau_3-\tau_5} \\
+    &= 1.51057355 \\
+  \tau_1 &= B_1-\tau_3-\tau_5 \\
+    &= 1.30146660
+\end{align*}
+
+Next we compute the weights for the output mixer (``output summer type''
+fifth order topology, design formulas from Sun's equation display (48)). 
+These are unitless numbers, representing the proportion of each integrator's
+output that should be included in the sum for the global output.  Note the
+last one forces them to sum to $A_0$, which (because of the normalization)
+is 1.
+\begin{align*}
+  \alpha_0 &= \frac{A_5}{B_5} \\
+    &= 0 \\
+  \alpha_1 &= \frac{A_4-\alpha_0B_4}{\tau_2\tau_3\tau_4\tau_5} \\
+    &= 0.00447430 \\
+  \alpha_2 &=
+    \frac{A_3-\alpha_0B_3-\alpha_1\tau_2\tau_3\tau_4}{\tau_3\tau_4\tau_5} \\
+    &= -0.00483124 \\
+  \alpha_3 &= \frac{A_2-\alpha_0B_2-\alpha_1(\tau_2\tau_3+\tau_2\tau_5+
+      \tau4\tau_5)-\alpha_2\tau_3\tau_4}{\tau_4\tau_5} \\
+    &= 0.19307299 \\
+  \alpha_4 &= \frac{A_1-\alpha_0B_1-\alpha_1(\tau_2+\tau_4)
+      -\alpha_2(\tau_3+\tau_5) -\alpha_3\tau_4}{\tau_5} \\
+    &= -0.17101598 \\
+  \alpha_5 &= A_0-(\alpha_0+\alpha_1+\alpha_2+\alpha_3+\alpha_4) \\
+    &= 0.97829992
+\end{align*}
+
+\section{Integrator component values}
+
+The integrators in the MSK~007 have rates determined by a global
+frequency-control current $I_\textrm{ABC}$ derived from the module-input
+control voltages and copied to all integrators; a diode-biasing current
+$I_\textrm{D}$ local to a single integrator and actually determined by a
+programming resistance $R$ (made up of a fixed resistor and a
+trimmer in series); resistor dividers on the positive and negative
+voltage inputs; and an integration capacitor $C$.  After setting most of the
+other values from circuit-design requirements, we
+will choose the value of $R$ to realize a given $\tau$.
+
+For the initial calculation:  assume the module's operating frequency $f$ is
+10kHz, corresponding to $I_\textrm{ABC}=1\textrm{mA}$.  With a 1V input, we
+want the output capacitor to charge at a rate $\partial V/\partial
+t=2\pi f/\tau\textrm{V}=62.831853\textrm{kV}/\textrm{s}$.  Choosing a
+470pF capacitor for now (a decision which originated in working backwards
+from reasonable scales for the final component values), we want the OTA to
+produce an output current $I_\textrm{O}$ of
+$62.831853/\tau(\textrm{kV}/\textrm{s})\cdot470pF = \tau29.53097091
+\mu\textrm{A}$.
+
+We assume the input of the LM13700 consumes half of the current from the 1V
+input, and has infinite impedance.  These assumptions,
+although false, have only a multiplicative-constant effect (so that the
+ratios will end up right); we can scale the capacitors using experimental
+data later to take up any slack, if necessary.
+
+The 1V input is looking into a 141k$\Omega$ impedance and generates a
+current of 7.09219858$\mu$A; half of that is the LM13700 input current
+$I_\textrm{S}=3.54609929\mu$A.  Then from the formula in the LM13700
+datasheet, solving for $I_\textrm{D}$,
+\begin{align*}
+  I_\textrm{O}
+    &= I_\textrm{S}\left(\frac{2I_\textrm{ABC}}{I_\textrm{D}}\right) \\
+  I_\textrm{D} &= \tau240.16137504\mu\textrm{A} \, .
+\end{align*}
+
+This current comes from imposing 2.496V (the TL0431 reference voltage)
+across the programming resistor $R$; so the resistance to produce this is
+$2.496\textrm{V}/\tau240.16137504u\textrm{A} =
+10.39301178\textrm{k}\Omega/\tau$.  We apply that formula to each of the
+programming resistances for the five dividers:
+\begin{align*}
+  \textrm{R}1+\textrm{R}7 &= 10.39301178\textrm{k}\Omega/1.30146660 \\
+    &= 7.98561544\textrm{k}\Omega \\
+  \textrm{R}2+\textrm{R}8 &= 10.39301178\textrm{k}\Omega/1.51057355 \\
+    &= 6.88017593\textrm{k}\Omega \\
+  \textrm{R}3+\textrm{R}9 &= 10.39301178\textrm{k}\Omega/2.31905231 \\
+    &= 4.48157712\textrm{k}\Omega \\
+  \textrm{R}22+\textrm{R}26 &= 10.39301178\textrm{k}\Omega/1.26747916 \\
+    &= 8.19974963\textrm{k}\Omega \\
+  \textrm{R}23+\textrm{R}27 &= 10.39301178\textrm{k}\Omega/1.39860140 \\
+    &= 7.43100342\textrm{k}\Omega \, .
+\end{align*}
+
+Note we want to keep the programming current in the range of a few hundred
+$\mu$A.  Texas Instruments recommends using as much as possible given gain
+constraints and what the chip can handle, to keep distortion low, with 1mA
+as a default target; but other experimenters have reported that 1mA is too
+much and causes other distortion, and 500$\mu$A works better.  Here we have
+about a 2:1 range between the largest and smallest $\tau$ values, so it's
+possible to use the same capacitor values in all integrators and have all
+the programming currents in the desired range.  The programming currents
+here are from about 304$\mu$A to 557$\mu$A, by Ohm's law on the above
+resistances and 2.496V.  If there were a wider range of $\tau$ values, we
+might want to use unequal capacitors to bring the programming currents
+closer together.
+
+\section{Mixer resistor values}
+
+Now we follow the procedure described in several sources, including
+Sheingold\footnote{Dan Sheingold, Analog Dialogue Vol.  10, No.  1 (1976),
+``Simple Rules for Choosing Resistor Values in Adder-Subtractor Circuits''}
+and
+Ardizzoni\footnote{\url{http://electronicdesign.com/ideas-design/efficiently-design-op-amp-summer-circuit}}
+to choose resistor values for an op amp summer circuit.  The op amp output
+voltage (\texttt{VOUTPUT} from U3C on the schematic) is supposed to be a
+weighted sum of the integrator voltages, where the weights are the $\alpha$
+coefficients from the leapfrog design procedure.  Some of them are negative;
+and in principle \texttt{VINPUT} could be included in the sum too, but for
+this particular curve, because $\alpha_0=0$, it will not be included and we
+can leave out the components R28 and R29 which would set its value.
+
+We compute the sums of the positive and negative coefficients, as
+described by Sheingold.
+\begin{align*}
+  \Sigma_\textrm{a} &= \sum_{\alpha_i>0} \alpha_i \\
+    &= 0.00447430+0.19307299+0.97829992 \\
+    &= 1.17584721 \\
+  \Sigma_\textrm{b} &= \sum_{\alpha_i<0} -\alpha_i \\
+    &= 0.00483124+0.17101598 \\
+    &= 0.17584722
+\end{align*}
+
+Because the $\alpha$ values always add up to 1 in the leapfrog design
+procedure, the discriminant $\Delta$ will necessarily be 0; with the
+numerical values above it comes out to 0.00000001 due to rounding, but we
+will treat it as 0, which means that the resistor to ground R86 will not be
+needed.  It is included in the schematic and PCB for extra flexibility,
+should someone want to change the design to have non-unity total gain
+through the mixer.
+
+There are different ways to select the feedback resistance $R_\textrm{F}$. 
+Sheingold suggests choosing a minimum impedance to appear at either op amp
+input and choosing the feedback resistance to achieve that.  I instead
+worked from the constraint of not wanting the maximum input resistor value
+to be any more than 1M$\Omega$, which means $R_\textrm{F}$ can be at most
+1M$\Omega$ times the absolute value of the smallest $\alpha$ (not counting
+the zero input coefficient $\alpha_0$; in effect we are assuming we allow
+\emph{infinite} resistors, just no finite ones greater than 1M$\Omega$):
+\begin{align*}
+  R_\textrm{F} &\le 1\textrm{M}\Omega \cdot \min \{ |\alpha| \} \\
+    & \le 4.47\textrm{k}\Omega \, .
+\end{align*}
+
+The next smaller E24 standard value is 4.3k$\Omega$; we use that for R40.
+Resistance values for the inputs (each of which is the sum of a fixed
+resistor and a trimmer) follow by dividing the feedback resistor by the
+absolute value of each $\alpha$:
+\begin{align*}
+  \textrm{R}30+\textrm{R}31 &= R_\textrm{F}/|\alpha_1| \\
+    &= 961.0437\textrm{k}\Omega \\
+  \textrm{R}32+\textrm{R}33 &= R_\textrm{F}/|\alpha_2| \\
+    &= 890.0415\textrm{k}\Omega \\
+  \textrm{R}34+\textrm{R}35 &= R_\textrm{F}/|\alpha_3| \\
+    &= 22.2714\textrm{k}\Omega \\
+  \textrm{R}38+\textrm{R}39 &= R_\textrm{F}/|\alpha_4| \\
+    &= 25.1438\textrm{k}\Omega \\
+  \textrm{R}43+\textrm{R}44 &= R_\textrm{F}/|\alpha_5| \\
+    &= 4.3954\textrm{k}\Omega
+\end{align*}
+
+The breakdown of specific values for the fixed resistors and trimmers
+follows by choosing standard values to give adjustment ranges of between
+about $\pm2$\%\ and $\pm5$\%\ around the nominal totals.  The fixed
+resistors corresponding to negative $\alpha$ values need to be connected
+(using the optional pads on the board) to the op amp negative input; those
+are R33 and R39.  The other three go to the positive input.
+
+\section{Mixer pre-adjustment targets}
+
+Most adjustments for the module are done by setting the trimmers in the
+resistor network on Board~3.  The recommended procedure is to first
+``pre-adjust'' Board~3 by itself, to bring the resistors to the values they
+ought to have if the other boards behaved exactly according to the nominal
+design values; then connect Board~3 to the other two boards and do any
+further adjustments needed to account for imperfect component values on the
+other boards (for instance, the tolerance of the integrator capacitors).
+
+For the integrator programming resistances, the pre-adjustment is easy
+because disconnecting the boards allows a direct ohmeter reading of each
+programming resistance.  For the output mixer, however, things are more
+complicated because some of the resistances that need to be adjusted are
+permanently connected with other things and cannot be measured in isolation.
+
+With Board~3 separated from the others, the relevant portion of the resistor
+network is as shown in this simplified schematic:
+
+{\centering\input{simplres.tex}\par}
+
+There is also a connection
+to the power supplies through R87, but its effect is negligible.  The
+signals \texttt{VINTA} and \texttt{VINTD} are deliberately assigned to two
+of the inter-board pins each, with the connections to the mixer joined to
+the OTA input voltage dividers only through traces on Board~2; these
+connections are broken when the boards are disconnected.  These two signals
+were chosen for this purpose in an effort to maximize the sensitivity of the
+remaining indirect measurements while economizing on inter-board pins, which
+are in short supply.  An earlier draft design used an elaborate arrangement
+of DIP switches on Board 3 to allow isolating the signals, but (given how
+well the module performed in breadboard testing even when very inaccurately
+adjusted) such complexity seemed unnecessary.
+
+From the diagram, we can measure R30+R31 directly by testing resistance
+between test points P8 and P22; R32+R33 between P9 and P23; and R38+R39
+between P13 and P22.  That leaves R34+R35 and R43+R44 not directly
+accessible.
+
+If we measure between P10 and P22, we see R34+R35 in parallel with a series
+combination of 70.5k$\Omega$, 70.5k$\Omega$, and 4.3954k$\Omega$.  The
+target measurable value for adjusting R34 is given by $22.2714\textrm{k}\Omega\|(70.5\textrm{k}\Omega+
+70.5\textrm{k}\Omega+4.3954\textrm{k}\Omega=19.3130\textrm{k}\Omega$.
+
+If we measure between P16 and P22, we see R43+R44 in parallel with a series
+combination of 70.5k$\Omega$, 70.5k$\Omega$, and 22.2714k$\Omega$.  The
+target measurable value for adjusting R43 is given by
+$22.2714\textrm{k}\Omega\|(70.5\textrm{k}\Omega+
+70.5\textrm{k}\Omega+22.2714\textrm{k}\Omega=4.2802\textrm{k}\Omega$.
+
+\section{Precise adjustment targets}
+
+The precise adjustment procedure, with all three boards joined, starts by
+tuning the module to oscillate at a specified frequency, then turning down
+the feedback, feeding it the same frequency as input, and adjusting the
+integrator time constants to get the right phase shift through each
+integrator.  The reason to adjust with an external signal rather than while
+the filter is self-oscillating is that during self-oscillation, the phase shift
+adjustments interact with the resonant frequency in a way that is difficult
+to control.
+
+The reference frequency ought to be one we can conveniently measure, and
+around the typical setting of the module in actual use.  Guessing that a
+cutoff frequency of 1kHz is typical, it corresponds to an oscillation
+frequency of 730Hz, and the closest musical note (concert pitch 12-EDO) is
+F$\sharp$ an augmented eleventh, or one and a half octaves, above middle C;
+that is 739.9888Hz.  That's a
+convenient reference point.  Users can call it 740Hz if they wish.  One
+period of this frequency is 1351.3757$\mu$s.
+
+The behaviour of the filter, given a sine wave at some fixed frequency, can
+be described by a set of simultaneous equations over the complex numbers. 
+Where $V_\textrm{I}$ and $B_\textrm{O}$ are the input and output voltages
+respectively, and the integrator outputs are $V_\textrm{A}$, $V_\textrm{B}$,
+$V_\textrm{C}$, $V_\textrm{D}$, $V_\textrm{E}$, with $f$ a variable
+representing the frequency scaling, we have
+\begin{align*}
+  V_\textrm{A} &= (V_\textrm{I}-V_\textrm{B})fj/\tau_1 \\
+  V_\textrm{B} &= (V_\textrm{A}-V_\textrm{C})fj/\tau_2 \\
+  V_\textrm{C} &= (V_\textrm{B}-V_\textrm{D})fj/\tau_3 \\
+  V_\textrm{D} &= (V_\textrm{C}-V_\textrm{E})fj/\tau_4 \\
+  V_\textrm{E} &= (V_\textrm{D}-V_\textrm{E})fj/\tau_5 \\
+  V_\textrm{O} &= \alpha_0V_\textrm{I}+\alpha_1V\textrm{A}
+    +\alpha_2V\textrm{B}+\alpha_3V\textrm{C} \\
+    & \quad\quad +\alpha_4V\textrm{D} +\alpha_5V\textrm{E} \, .
+\end{align*}
+
+We can find the oscillation frequency by fixing $V_\textrm{I}=-V_\textrm{O}$
+(180$^\circ$ phase shift), and the response to other signals (of each
+integrator, not only the overall output response) by setting other values of
+$V_\textrm{I}$ and looking at the resulting values of the variables. 
+However, instead of solving these equations explicitly, I used the Qucs
+circuit simulator with voltage-controlled current sources feeding into ideal
+capacitors to simulate the integrators, referencing everything to 1Hz.  An
+integrator with a time constant of $\tau$ would be simulated by a
+$(1/\tau)$A/V voltage-controlled current source feeding a $(1/2\pi)$F
+capacitor.  I also added more voltage-to-current converters with rates equal
+to the $\alpha$ values, all feeding into a common summing node with a
+current probe to compute the response at the output (technically, it becomes
+$I_\textrm{O}$ instead of $V_\textrm{O}$).
+
+Assume the earlier computation of the oscillation frequency as 0.7300 of the
+cutoff frequency (which came from using Gnuplot to measure off the
+input-to-output transfer-function phase chart) was correct.  Giving the
+simulated circuit a sine wave input of 0.7300Hz and 1V allows computing the
+complex amplitudes that should be observed in the oscillating filter.  In
+magnitude and phase form, they are:
+\begin{alignat*}{2}
+  V_\textrm{A} &= 1.42150457\textrm{V}&@&-14.3969145^\circ \\
+  V_\textrm{B} &= 1.46708733\textrm{V}&@&-63.0804611^\circ \\
+  V_\textrm{C} &= 1.08763802\textrm{V}&@&-93.4388609^\circ \\
+  V_\textrm{D} &= 1.67693332\textrm{V}&@&-134.421988^\circ \\
+  V_\textrm{E} &= 1.17339866\textrm{V}&@&\quad 179.983267^\circ \\
+  I_\textrm{O} &= 0.956850634\textrm{V}&@&\quad179.983267^\circ
+\end{alignat*}
+
+The closeness of the $I_\textrm{O}$ phase to 180$^\circ$ gives some idea of
+the amount of precision we can really expect from this calculation.  Taking
+differences of the phases in degrees, and multiplying by the period of the
+739.9888Hz oscillation frequency (which is 1351.3757$\mu$s/360$^\circ$), we
+get the following phase and time difference targets.  For a perfectly
+adjusted module oscillating at 739.99888Hz:
+\begin{itemize}
+  \item the integrator A output should lead the core input by
+    14.3969145$^\circ$ or 54.04344558$\mu$s;
+  \item the integrator B output should lead the integrator A output by
+    48.6835466$^\circ$ or 182.74933851$\mu$s;
+  \item the integrator C output should lead the integrator B output by
+    30.3583998$^\circ$ or 113.96001050$\mu$s;
+  \item the integrator D output should lead the integrator C output by
+    40.9831271$^\circ$ or 153.84333909$\mu$s;
+  \item the integrator E output should lead the integrator D output by
+    45.594745$^\circ$ or 171.15452900$\mu$s; and
+  \item the integrator E output and mixer output should be perfectly in
+    phase.
+\end{itemize}
+
+Note the core input and mixer output are not the same as the module overall
+input and output; there are inverting buffers between the core and the
+outside world at both ends, and in feedback mode, the core output goes
+through the input buffer, which supplies the remaining 180$^\circ$ of phase
+shift.

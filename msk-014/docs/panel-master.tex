@@ -1,0 +1,178 @@
+% $Id: panel-master.tex 9713 2021-12-18 19:22:35Z mskala $
+
+%
+% MSK 014 panel design (master)
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{lilyglyphs}
+\usepackage{graphicx}
+\usepackage[papersize={40.30mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (lrrh) at ($(o)+(32.90mm,3.00mm)$) {};
+  \coordinate (urrh) at ($(o)+(32.90mm,125.50mm)$) {};
+  \coordinate (lbh) at ($(o)+(4.91mm,34.23mm)$) {};
+  \coordinate (ubh) at ($(o)+(35.39mm,112.97mm)$) {};
+  \coordinate (j1) at ($(o)+(8.72mm,62.17mm)$) {};
+  \coordinate (j2) at ($(o)+(27.77mm,62.17mm)$) {};
+  \coordinate (j3) at ($(o)+(8.72mm,43.12mm)$) {};
+  \coordinate (j4) at ($(o)+(27.77mm,43.12mm)$) {};
+  \coordinate (j5) at ($(o)+(8.72mm,24.07mm)$) {};
+  \coordinate (j6) at ($(o)+(27.77mm,24.07mm)$) {};
+  \coordinate (d5) at ($(o)+(8.72mm,53.28mm)$) {};
+  \coordinate (d6) at ($(o)+(27.77mm,53.28mm)$) {};
+  \coordinate (j11) at ($(o)+(8.80mm,102.81mm)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (40.30mm,128.50mm);
+  %
+  \draw[very thick,black,fill=blue!15!black!30!white,rounded corners=3.0mm]
+    ($(j11)+(-15mm,-12mm)$) rectangle ($(j11)+(11mm,12mm)$);
+  \draw[very thick,black] (j1) -- (j3);
+  \draw[very thick,black] (j2) -- (j4);
+  \draw[very thick,black,fill=blue!30!black,rounded corners=3.0mm]
+    ($(j5)+(-5mm,-7mm)$) rectangle ($(j4-|current page.east)+(5mm,7mm)$);
+  \node at ($(j1)!0.5!(j2)$) {\large IN};
+  \node[white] at ($(j3)!0.5!(j4)$) {\large\textbf{CV}};
+  \node[white] at ($(j5)!0.5!(j6)$) {\large\textbf{GT}};
+  %
+  \coordinate (sref) at ($(j1)!0.53!(j11)$) {};
+  \coordinate (nref) at ($(sref)+(9.525mm,-20.32mm)$) {};
+  \draw[very thick] ($(sref-|current page.west)$)
+    -- ($(sref-|current page.east)$);
+  \draw[very thick] ($(sref-|current page.west)+(0,-2.5mm)$)
+    -- ($(sref-|current page.east)+(0,-2.5mm)$);
+  \draw[very thick] ($(sref-|current page.west)+(0,-5mm)$)
+    -- ($(sref-|current page.east)+(0,-5mm)$);
+  \draw[very thick] ($(sref-|current page.west)+(0,-7.5mm)$)
+    -- ($(sref-|current page.east)+(0,-7.5mm)$);
+  \draw[very thick] ($(sref-|current page.west)+(0,-10mm)$)
+    -- ($(sref-|current page.east)+(0,-10mm)$);
+  \node at ($(nref)+(-11.0mm,15.62mm)$)
+    {\lilyGlyph[scale=2.9]{clefs.G}};
+  \node at ($(nref)+(-3.5mm,15.62mm)$)
+    {\lilyGlyph[scale=2.9]{rests.2}};
+  \foreach \x/\y in {3.00/0.05,10.00/2.55,17.00/5.05} {
+    \node at ($(nref)+(\x mm,14mm+\y mm)$)
+      {\lilyGlyph[scale=2.9]{noteheads.s2}};
+    \draw[very thick]
+      ($(nref)+(\x mm+1.4mm,14.1mm+\y mm)$) -- ++(0,8.5mm);
+  }
+  %
+  \node at ($(current page.north)+(0.0mm,-4.0mm)$) {\large MSK 014};
+  \node at ($(current page.north)+(0.0mm,-9.5mm)$) {\large GRACIOUS HOST};
+  \node at ($(current page.south)+(0.0mm,8.5mm)$)
+    {\parbox{0.9in}{\linespread{0.75}\selectfont\center NORTH COAST}};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  \draw (lrrh) circle[radius=1.60mm];
+  \draw (urrh) circle[radius=1.60mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=1.60mm];
+  \draw (ubh) circle[radius=1.60mm];
+  % six jacks with M6 threads, 6.3mm holes
+  \draw (j1) circle[radius=3.15mm];
+  \draw (j2) circle[radius=3.15mm];
+  \draw (j3) circle[radius=3.15mm];
+  \draw (j4) circle[radius=3.15mm];
+  \draw (j5) circle[radius=3.15mm];
+  \draw (j6) circle[radius=3.15mm];
+  % two LEDs, 5.20mm holes
+  \draw (d5) circle[radius=2.60mm];
+  \draw (d6) circle[radius=2.60mm];
+  % rectangular hole for USB A connector
+  \draw[rounded corners=1mm]
+    ($(j11)+(-3.76mm,-7.45mm)$) rectangle ($(j11)+(3.76mm,7.45mm)$);
+  \fi
+%
+  % hole centres (for panel graphics)
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35mm];
+  \draw (ulrh) circle[radius=0.35mm];
+  \draw (lrrh) circle[radius=0.35mm];
+  \draw (urrh) circle[radius=0.35mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=0.35mm];
+  \draw (ubh) circle[radius=0.35mm];
+  % six jacks with M6 threads, 6.3mm holes
+  \draw (j1) circle[radius=0.35mm];
+  \draw (j2) circle[radius=0.35mm];
+  \draw (j3) circle[radius=0.35mm];
+  \draw (j4) circle[radius=0.35mm];
+  \draw (j5) circle[radius=0.35mm];
+  \draw (j6) circle[radius=0.35mm];
+  % two LEDs, 5.20mm holes
+  \draw (d5) circle[radius=0.35mm];
+  \draw (d6) circle[radius=0.35mm];
+  % rectangular hole for USB A connector
+  \draw ($(j11)+(-1.26mm,-4.95mm)$) rectangle ($(j11)+(1.26mm,4.95mm)$);
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,lbh,ubh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {j1,j2,j3,j4,j5,j6} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+  }
+  % LEDs with red/green gradient
+  \foreach \ledname in {d5,d6} {
+    \path[shading=ball,left color=green,right color=red]
+      (\ledname) circle[radius=2.50mm];
+  }
+  % mock up USB connector
+  \draw[rounded corners=1mm,fill=black!10!white]
+    ($(j11)+(-3.76mm,-7.45mm)$) rectangle ($(j11)+(3.76mm,7.45mm)$);
+  \fill[rounded corners=0.64mm,fill=black!70!white]
+    ($(j11)+(-2.25mm,-6.00mm)$) rectangle ($(j11)+(2.25mm,6.00mm)$);
+  \fill[rounded corners=0.64mm,fill=blue!35!black!30!white]
+    ($(j11)+(0,-5.50mm)$) rectangle ($(j11)+(1.75mm,5.50mm)$);
+  \fi
+\end{tikzpicture}%
+\end{document}

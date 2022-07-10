@@ -1,0 +1,513 @@
+#!/usr/bin/perl
+
+# $Id: fmtlisting 9837 2022-02-13 17:27:02Z mskala $
+
+# Assembly-language listing formatter
+# Copyright (C) 2022  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+
+$TOC_PAGE_START=6;
+$FILE_PAGE_START=8;
+$OTHER_PAGE_START=4;
+$PAGE_LINES=54;
+$BLANK_PAGE_PENALTY=50;
+$EARLY_SHORT_PENALTY=80;
+
+########################################################################
+
+$i=0;
+$titlestate=0;
+
+$oldfn='';
+
+while (<>) {
+  chomp;
+
+  if ($oldfn ne $ARGV) {
+    $titlestate=0;
+    $oldfn=$ARGV;
+  }
+
+  s/^ (\d\d\d\d)/\1/;
+
+  while (/^([^\t]*)\t(.*)$/) {
+    $x=length($1);
+    $x=8-($x%8);
+    $_=$1.(' 'x$x).$2;
+  }
+
+  if (/^\s*\d*\s*\.title\s"(.*)"/) {
+    $current_title=$1;
+    if (($i>0) && ($text[$i-1]=~/^\s*\d*\s*\.psize/)) {
+      $title[$i-1]=$current_title;
+    }
+  }
+
+  next if /^\s*\d+\s+>/;
+
+  if (/^\s*\d*\s*\.sbttl\s"(.*)"/) {
+    $current_subtitle=$1;
+    if (($i>1) && ($text[$i-2]=~/^\s*\d*\s*\.psize/)) {
+      $subtitle[$i-2]=$current_subtitle;
+    }
+    if (($i>0) && ($text[$i-1]=~/^\s*\d*\s*\.title/)) {
+      $subtitle[$i-1]=$current_subtitle;
+    }
+  }
+
+  if (/^SECTION INFORMATION:/) {
+    $titlestate=3;
+    $current_subtitle='Section information';
+    $i--;
+
+  } elsif (($titlestate==0) || (/^\f/)) {
+    $titlestate=1;
+
+  } elsif ($titlestate==1) {
+    $titlestate=2;
+
+  } elsif ($titlestate==2) {
+    $titlestate=3;
+
+  } else {
+    $fn[$i]=$ARGV;
+    $text[$i]=$_;
+    $title[$i]=$current_title;
+    $subtitle[$i]=$current_subtitle;
+    $i++;
+  }
+}
+
+########################################################################
+
+sub generate_toc {
+  $toc_length=$#toc_lines+1;
+  undef @toc_lines;
+  for ($i=$toc_length;$i<=$#text;$i++) {
+    if (($i==$toc_length) || ($fn[$i] ne $fn[$i-1])
+     || ($title[$i] ne $title[$i-1])) {
+      $key=join('|',$fn[$i],$title[$i],$subtitle[$i]);
+      push @toc_lines,'' if $i!=$toc_length;
+      push @toc_lines,
+        sprintf('    %-100s%4d',$fn[$i].' - '.$title[$i],0+$toc_pages{$key});
+    } elsif ($subtitle[$i] ne $subtitle[$i-1]) {
+      $key=join('|',$fn[$i],$title[$i],$subtitle[$i]);
+      push @toc_lines,
+        sprintf('        %-96s%4d',$subtitle[$i],0+$toc_pages{$key});
+    }
+  }
+}
+
+&generate_toc;
+
+unshift @text,@toc_lines;
+unshift @fn,('')x($#toc_lines+1);
+unshift @title,('')x($#toc_lines+1);
+unshift @subtitle,('')x($#toc_lines+1);
+
+########################################################################
+
+for ($i=0;$i<=$#text;$i++) {
+  if ($i==0) {
+    $min_y[$i]=$TOC_PAGE_START;
+    $max_y[$i]=$TOC_PAGE_START;
+    $must_odd=1;
+  } elsif ($fn[$i] ne $fn[$i-1]) {
+    $min_y[$i]=$FILE_PAGE_START;
+    $max_y[$i]=$FILE_PAGE_START;
+    $must_odd=1;
+  } elsif (($title[$i] ne $title[$i-1])
+        || ($subtitle[$i] ne $subtitle[$i-1])) {
+    $min_y[$i]=$OTHER_PAGE_START;
+    $max_y[$i]=$OTHER_PAGE_START;
+    $must_odd=0;
+  } else {
+    $min_y[$i]=$i<=$#toc_lines?1:$OTHER_PAGE_START;
+    $max_y[$i]=$max_y[$i-1]+1;
+    $max_y[$i]=$PAGE_LINES if $max_y[$i]>$PAGE_LINES;
+    $must_odd=0;
+  }
+
+  for ($y=$min_y[$i];$y<=$max_y[$i];$y++) {
+    if ($y==$min_y[$i]) {
+      # suppose we are starting a new odd page with this line
+
+      if ($i==0) {
+        # first line of entire run; zero score
+        $score_odd[$i][$y]=0;
+
+      } else {
+        # previous page ended after one line, and we skip one blank page
+        # used as basis case because this is always possible
+        $best_score=$score_odd_page[$i-1][$min_y[$i-1]]+$BLANK_PAGE_PENALTY;
+        $best_page_decision=2;
+        $best_line_decision=$min_y[$i-1];
+        $best_score+=($EARLY_SHORT_PENALTY-$min_y[$i-1])
+          if $min_y[$i]!=$max_y[$i];
+        $best_score+=1000000 unless $min_y[$i]==$FILE_PAGE_START;
+
+        # previous page was longer, and we skip one blank page
+        for ($j=$min_y[$i-1]+1;$j<=$max_y[$i-1];$j++) {
+          next if $score_odd_page[$i-1][$j]<0;
+          $score=$score_odd_page[$i-1][$j]+$BLANK_PAGE_PENALTY;
+          $score+=($EARLY_SHORT_PENALTY-$j) if $min_y[$i]!=$max_y[$i];
+          $score+=1000000 unless $min_y[$i]==$FILE_PAGE_START;
+          if ($score<=$best_score) {
+            $best_score=$score;
+            $best_page_decision=2;
+            $best_line_decision=$j;
+          }
+        }
+
+        # we start a new page but without skipping a blank page
+        for ($j=$min_y[$i-1];$j<=$max_y[$i-1];$j++) {
+          next if $score_even_page[$i-1][$j]<0;
+          $score=$score_even_page[$i-1][$j];
+          $score+=($EARLY_SHORT_PENALTY-$j) if $min_y[$i]!=$max_y[$i];
+          if ($score<=$best_score) {
+            $best_score=$score;
+            $best_page_decision=1;
+            $best_line_decision=$j;
+          }
+        }
+
+        $score_odd[$i][$y]=$best_score;
+        $page_decision_odd[$i][$y]=$best_page_decision;
+        $line_decision_odd[$i][$y]=$best_line_decision;
+      }
+
+    } else {
+      # suppose we are continuing an odd page with this line
+
+      if (($i==0) || ($y<$min_y[$i-1]+1) || ($y>$max_y[$i-1]+1)
+       || ($score_odd[$i-1][$y-1]<0)) {
+        # sorry, we can't continue a page to this length with this line
+        $score_odd[$i][$y]=-1;
+      } else {
+        # if we can, then it happens for free
+        $score_odd[$i][$y]=$score_odd[$i-1][$y-1];
+        $page_decision_odd[$i][$y]=0;
+        $line_decision_odd[$i][$y]=$y-1;
+      }
+    }
+
+    if ($must_odd) {
+      # can't write this line on an even page at all
+      $score_even[$i][$y]=-1
+
+    } elsif ($y==$min_y[$i]) {
+      # suppose we are starting a new even page with this line
+
+      # $i==0 case never hit here because it is $must_odd
+
+      # previous page was odd and ended after one line
+      # used as basis case because this is always possible
+      $best_score=$score_odd_page[$i-1][$min_y[$i-1]];
+      $best_score+=($EARLY_SHORT_PENALTY-$min_y[$i-1])
+        if $min_y[$i]!=$max_y[$i];
+      $best_page_decision=1;
+      $best_line_decision=$min_y[$i-1];
+
+      # previous page was odd and longer
+      for ($j=$min_y[$i-1]+1;$j<=$max_y[$i-1];$j++) {
+        next if $score_odd_page[$i-1][$j]<0;
+        $score=$score_odd_page[$i-1][$j];
+        $score+=($EARLY_SHORT_PENALTY-$j)
+          if $min_y[$i]!=$max_y[$i];
+        if ($score<=$best_score) {
+          $best_score=$score;
+          $best_page_decision=1;
+          $best_line_decision=$j;
+        }
+      }
+
+      # we start a new page after skipping a blank page
+      for ($j=$min_y[$i-1];$j<=$max_y[$i-1];$j++) {
+        next if $score_even_page[$i-1][$j]<0;
+        $score=$score_even_page[$i-1][$j]+$BLANK_PAGE_PENALTY;
+        $score+=($EARLY_SHORT_PENALTY-$j)
+          if $min_y[$i]!=$max_y[$i];
+        $score+=1000000 unless $min_y[$i]==$FILE_PAGE_START;
+        if ($score<=$best_score) {
+          $best_score=$score;
+          $best_page_decision=2;
+          $best_line_decision=$j;
+        }
+      }
+
+      $score_even[$i][$y]=$best_score;
+      $page_decision_even[$i][$y]=$best_page_decision;
+      $line_decision_even[$i][$y]=$best_line_decision;
+
+    } else {
+      # suppose we are continuing an even page with this line
+
+      if (($i==0) || ($y<$min_y[$i-1]+1) || ($y>$max_y[$i-1]+1)
+       || ($score_even[$i-1][$y-1]<0)) {
+        # sorry, we can't continue even page to this length with this line
+        $score_even[$i][$y]=-1;
+      } else {
+        # if we can, then it happens for free
+        $score_even[$i][$y]=$score_even[$i-1][$y-1];
+        $page_decision_even[$i][$y]=0;
+        $line_decision_even[$i][$y]=$y-1;
+      }
+    }
+
+    if ($y==54) {
+      $end_penalty=0;
+    } elsif ($y>=34) {
+      $end_penalty=5+(54-$y)*5;
+    } elsif ($y>=15) {
+      $end_penalty=105;
+    } else {
+      $end_penalty=105+(15-$y)*10;
+    }
+
+    $end_penalty+=40 if !($text[$i]=~/^\s*\d*\s*$/);
+
+    if ($score_odd[$i][$y]<0) {
+      $score_odd_page[$i][$y]=-1;
+    } else {
+      $score_odd_page[$i][$y]=$score_odd[$i][$y]+$end_penalty;
+    }
+
+    if (($score_even[$i][$y]<0) || ($must_odd)) {
+      $score_even_page[$i][$y]=-1;
+    } else {
+      $score_even_page[$i][$y]=$score_even[$i][$y]+$end_penalty;
+    }
+  }
+}
+
+########################################################################
+
+$i=$#text;
+$best_score=1e20;
+for ($y=$min_y[$i];$y<=$max_y[$i];$y++) {
+  if (($score_even_page[$i][$y]>=0)
+   && ($score_even_page[$i][$y]<$best_score)) {
+    $best_score=$score_even_page[$i][$y];
+    $best_y=$y;
+    $best_odd=0;
+  }
+  if (($score_odd_page[$i][$y]>=0)
+   && ($score_odd_page[$i][$y]<$best_score)) {
+    $best_score=$score_odd_page[$i][$y];
+    $best_y=$y;
+    $best_odd=1;
+  }
+}
+$chosen_odd[$i]=$best_odd;
+$chosen_x[$i]=0;
+$chosen_y[$i]=$best_y;
+
+for ($i=$#text-1;$i>=0;$i--) {
+  if ($chosen_odd[$i+1]) {
+    $chosen_odd[$i]=(1+$page_decision_odd[$i+1][$chosen_y[$i+1]])&1;
+    $chosen_x[$i]=$chosen_x[$i+1]-$page_decision_odd[$i+1][$chosen_y[$i+1]];
+    $chosen_y[$i]=$line_decision_odd[$i+1][$chosen_y[$i+1]];
+  } else {
+    $chosen_odd[$i]=$page_decision_even[$i+1][$chosen_y[$i+1]]&1;
+    $chosen_x[$i]=$chosen_x[$i+1]-$page_decision_even[$i+1][$chosen_y[$i+1]];
+    $chosen_y[$i]=$line_decision_even[$i+1][$chosen_y[$i+1]];
+  }
+}
+
+$x_offset=1-$chosen_x[0];
+for ($i=0;$i<=$#text;$i++) {
+  $chosen_x[$i]+=$x_offset;
+  $key=join('|',$fn[$i],$title[$i],$subtitle[$i]);
+  $toc_pages{$key}=$chosen_x[$i] unless $toc_pages{$key};
+}
+
+&generate_toc;
+
+for ($i=0;$i<=$#toc_lines;$i++) {
+  $text[$i]=$toc_lines[$i];
+}
+
+########################################################################
+
+print <<EOF;
+<< /PageSize [792 612] >> setpagedevice
+/SB {
+  newpath moveto
+  0 10 rlineto 720 0 rlineto 0 -10 rlineto -720 0 rlineto
+  closepath
+  0.95 setgray
+  fill
+  0 setgray
+} bind def
+/SBs {
+  newpath moveto
+  0 10 rlineto 672 0 rlineto 0 -10 rlineto -672 0 rlineto
+  closepath
+  0.95 setgray
+  fill
+  0 setgray
+} bind def
+EOF
+
+for ($i=0;$i<=$#text;$i++) {
+  if ($chosen_y[$i]==$min_y[$i]) {
+    if ($chosen_y[$i]==$TOC_PAGE_START) {
+      print "/CourierBold 40 selectfont\n";
+      $_='Contents';
+      s/([\\()])/\\\1/g;
+      $page_x=396-12*length($_);
+      $page_y=544;
+      printf "%d %d moveto (%s) show\n",$page_x,$page_y,$_;
+
+    } elsif ($chosen_y[$i]==$FILE_PAGE_START) {
+      print "/CourierBold 40 selectfont\n";
+      $_=$fn[$i];
+      s/([\\()])/\\\1/g;
+      $page_x=396-12*length($_);
+      $page_y=544;
+      printf "%d %d moveto (%s) show\n",$page_x,$page_y,$_;
+
+      print "/CourierBold 10 selectfont\n";
+
+      $_=$title[$i];
+      s/([\\()])/\\\1/g;
+      printf "%d %d moveto (%s) show\n",36,518,$_;
+
+      $_=$subtitle[$i];
+      s/([\\()])/\\\1/g;
+      printf "%d %d moveto (%s) show\n",36,508,$_;
+
+    } elsif ($chosen_y[$i]==$OTHER_PAGE_START) {
+      print "/CourierBold 10 selectfont\n";
+
+      $_=$fn[$i];
+      s/([\\()])/\\\1/g;
+      printf "%d %d moveto (%s) show\n",36,568,$_;
+
+      $_=$title[$i];
+      s/([\\()])/\\\1/g;
+      printf "%d %d moveto (%s) show\n",36,558,$_;
+
+      $_=$subtitle[$i];
+      s/([\\()])/\\\1/g;
+      printf "%d %d moveto (%s) show\n",36,548,$_;
+    } else {
+      # later page of TOC - no header
+    }
+
+    if (($chosen_x[$i]%2)==0) {
+      printf "/CourierBold 20 selectfont\n%d %d moveto (%4d) show\n",
+        708,560,$chosen_x[$i];
+    }
+
+    print "/Courier 10 selectfont\n";
+  }
+
+  $page_x=36;
+  $page_y=578-10*$chosen_y[$i];
+  $_=$text[$i];
+
+  if ($chosen_y[$i]%2) {
+    if ((($chosen_y[$i]<=2) && !($chosen_x[$i]%2))
+    || (($chosen_y[$i]>=$PAGE_LINES-1) && ($chosen_x[$i]%2))) {
+      printf "%d %d SBs\n",$page_x,$page_y-2;
+    } else {
+      printf "%d %d SB\n",$page_x,$page_y-2;
+    }
+  }
+
+  if (($i<=$#toc_lines) && (/^    \S/)) {
+    s/([\\()])/\\\1/g;
+    printf "/CourierBold 10 selectfont "
+      ."%d %d moveto (%s) show"
+      ." /Courier 10 selectfont\n",$page_x,$page_y,$_;
+
+  } elsif (/^\s*\d+\s*( [a-f0-9][a-f0-9])*\s*$/i) {
+    s/([\\()])/\\\1/g;
+    printf "%d %d moveto (%s) show\n",$page_x,$page_y,$_;
+
+  } elsif (/^([0-9a-f ]{24})([ 0-9a-z_]+:)?(\s*[a-z][^;:]*?)?(;.*)?$/i) {
+    ($a,$b,$c,$d)=($1,$2,$3,$4);
+
+    $a=~s/([\\()])/\\\1/g;
+    printf "%d %d moveto (%s) show",$page_x,$page_y,$a;
+
+    $bc=$b.$c;
+    $bc=~s/([\\()])/\\\1/g;
+    if ($bc ne '') {
+      print " /CourierBold 10 selectfont";
+      printf " (%s) show",$bc;
+    }
+
+    $d=~s/([\\()])/\\\1/g;
+    if ($d ne '') {
+      print " /CourierOblique 10 selectfont";
+      printf " (%s) show",$d;
+    }
+
+    if (($bc ne '') || ($d ne '')) {
+      print " /Courier 10 selectfont";
+    }
+    print "\n";
+
+  } elsif (/^([0-9a-f ]{24})([ 0-9a-z_]+:)?(\s*\.[^;:]*?)?(;.*)?$/i) {
+    ($a,$b,$c,$d)=($1,$2,$3,$4);
+
+    $a=~s/([\\()])/\\\1/g;
+    printf "%d %d moveto (%s) show",$page_x,$page_y,$a;
+
+    $b=~s/([\\()])/\\\1/g;
+    if ($b ne '') {
+      print " /CourierBold 10 selectfont";
+      printf " (%s) show",$b;
+    }
+
+    $c=~s/([\\()])/\\\1/g;
+    if ($c ne '') {
+      print " /Courier 10 selectfont";
+      printf " (%s) show",$c;
+    }
+
+    $d=~s/([\\()])/\\\1/g;
+    if ($d ne '') {
+      print " /CourierOblique 10 selectfont";
+      printf " (%s) show",$d;
+    }
+
+    if (($b ne '') || ($d ne '')) {
+      print " /Courier 10 selectfont";
+    }
+    print "\n";
+
+  } else {
+    s/([\\()])/\\\1/g;
+    printf "%d %d moveto (%s) show\n",$page_x,$page_y,$_;
+  }
+
+  if (($i==$#text) || ($chosen_x[$i]<$chosen_x[$i+1])) {
+    if (($chosen_x[$i]%2)==1) {
+      printf "/CourierBold 20 selectfont\n%d %d moveto (%4d) show\n",
+        708,40,$chosen_x[$i];
+    }
+    print "showpage\n";
+  }
+
+  if (($i<$#text) && ($chosen_x[$i]<$chosen_x[$i+1]-1)) {
+    print "showpage\n";
+  }
+}

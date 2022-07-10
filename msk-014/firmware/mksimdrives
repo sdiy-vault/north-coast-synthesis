@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Build images for simulated drives
+# $Id: mksimdrives 9764 2022-01-15 22:19:11Z mskala $
+# Copyright (C) 2022  Matthew Skala
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Matthew Skala
+# https://northcoastsynthesis.com/
+# mskala@northcoastsynthesis.com
+#
+
+# FAT32 with fragmentation
+
+/sbin/mkfs.fat -C -F 32 -s 1 -S 512 fat32b.bin 81920
+mount -o loop fat32b.bin /mnt/extra
+for i in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 ; do
+  dd if=/dev/zero bs=1024 count=5700 of=/mnt/extra/filler$i.dat
+  dd if=firmware.frm of=/mnt/extra/firmware.frm bs=1024 \
+    skip=$i seek=$i count=1
+done
+ls -l /mnt/extra
+umount /mnt/extra
+
+# straightforward FAT16
+
+/sbin/mkfs.fat -C -F 16 -s 2 -S 512 fat16a.bin 20480
+mount -o loop fat16a.bin /mnt/extra
+dd if=firmware.frm of=/mnt/extra/firmware.frm bs=1024 count=14
+ls -l /mnt/extra
+umount /mnt/extra
+
+# FAT16 with big logical blocks
+
+/sbin/mkfs.fat -C -F 16 -s 4 -S 2048 fat16b.bin 81920
+mount -o loop fat16b.bin /mnt/extra
+dd if=firmware.frm of=/mnt/extra/firmware.frm bs=1024 count=14
+ls -l /mnt/extra
+umount /mnt/extra
+
+# FAT12 like a 360K floppy
+
+/sbin/mkfs.fat -C -F 12 -g 2/9 -M 0xFD -r 112 -s 2 -S 512 fat12a.bin 360
+mount -o loop fat12a.bin /mnt/extra
+dd if=firmware.frm of=/mnt/extra/firmware.frm bs=1024 count=14
+ls -l /mnt/extra
+umount /mnt/extra
+
+# weird FAT12 with 1K logical blocks
+
+/sbin/mkfs.fat -C -F 12 -r 224 -s 1 -S 1024 fat12b.bin 1440
+mount -o loop fat12b.bin /mnt/extra
+dd if=firmware.frm of=/mnt/extra/firmware.frm bs=1024 count=14
+ls -l /mnt/extra
+umount /mnt/extra

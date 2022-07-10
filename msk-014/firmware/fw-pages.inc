@@ -1,0 +1,13 @@
+.equ __page_exists__00, 1
+.equ __page_exists__04, 1
+.equ __page_exists__08, 1
+.equ __page_exists__0c, 1
+.equ __page_exists__10, 1
+.equ __page_exists__14, 1
+.equ __page_exists__18, 1
+.equ __page_exists__1c, 1
+.equ __page_exists__20, 1
+.equ __page_exists__24, 1
+.equ __page_exists__40, 1
+.equ __page_exists__a4, 1
+.equ __page_exists__a8, 1

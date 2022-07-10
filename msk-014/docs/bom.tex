@@ -1,0 +1,53 @@
+% $Id: bom.tex 8166 2020-09-17 19:18:02Z mskala $
+
+%
+% MSK 014 bill of materials
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\onecolumn
+\chapter{Bill of materials}\label{cha:bom}
+
+{\centering
+\fbox{This table is not a substitute for the text instructions.}
+
+\begin{longtable}{rp{1.4in}cp{2.9in}}
+  \textbf{Qty} & \textbf{Ref} & \textbf{Value/Part No.} & \\ \hline \endhead
+\input{bomdata.tex}
+\end{longtable}\par}
+
+Fixed resistors should be 1\%\ metal film throughout.
+RoHS-certified zinc-plated steel hardware is recommended, not stainless
+steel because of galvanic-corrosion incompatibility with aluminum parts.
+
+Also needed:  solder and related supplies, two PCBs, three configuration
+jumpers, front panel, 16-pin Eurorack power cable, etc.
+
+Optional parts that may be added for development (not included in kits):
+
+{\centering
+\begin{longtable}{rp{1.4in}cp{2.9in}}
+  \textbf{Qty} & \textbf{Ref} & \textbf{Value/Part No.} & \\ \hline \endhead
+  1 & \raggedright P4 &  & male single-row header, 6 pins at 0.1$''$ \\
+  1 & \raggedright U7 & 7805 & +5V regulator in TO-220 package \\
+\end{longtable}\par}
+
+In some builds and kits the LM224 op amp chips may actually be LM224A.
+
+\twocolumn

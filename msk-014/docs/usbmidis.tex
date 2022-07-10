@@ -1,0 +1,135 @@
+% $Id: usbmidis.tex 9802 2022-01-28 23:27:05Z mskala $
+
+%
+% USB MIDI interface driver
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{USB-MIDI interface driver (usbmidi.s)}
+
+The code in usbmidi.s is the per-device driver for USB-MIDI devices.  These
+would typically include MIDI interfaces (such as to connect DIN-MIDI
+devices) and MIDI keyboards or other controllers.  In principle, MIDI
+\emph{synthesizers} follow the same standard and the Gracious Host can
+connect to them too, but because it only handles MIDI input and does not
+generate MIDI events of its own, connecting a synthesizer may not be a
+popular thing to do.
+
+Although the MIDI and USB drivers are each quite complicated, the USB-MIDI
+driver is simple, because it just serves as glue between these other two.
+
+\section{Data structures}
+
+The source file starts with an entry which the linker will insert into
+the executable TPL data structure to recognize USB devices that this driver
+can handle.  This is a call to TPL\_MATCH\_INTERFACE\_CLASS that looks for
+an interface descriptor of class~1 (``audio''), subclass~3 (``MIDI
+streaming'').
+
+Then it defines some data structures in the common area.  The very start of
+the common area is laid out in the way assumed by FIND\_IN\_OUT\_ENDPOINTS
+in qwerty.s, so that we can reuse that code.  This layout necessitates two
+words at the start for pointers to the first in, and first out, endpoint
+found; then there follows an array of EPs which will be filled in by
+USB\_CONFIGURE\_DEVICE.
+
+USB-MIDI devices, according to the~1.0 standard, may theoretically have
+complicated interfaces with many endpoints serving different purposes; but
+in practice, real devices usually have exactly one bulk input and one bulk
+output endpoint.  Later versions of the standard stopped allowing some of
+the more complicated stuff.  To increase the chance of success when
+presented with a complicated USB-MIDI~1.0 configuration, the code here
+reserves space for up to eight endpoints and then will use the first bulk
+input endpoint detected among those as the source for MIDI input.  This
+works well on nearly all MIDI devices that someone could reasonably use with
+the module.
+
+After the endpoint array comes an IRP structure, and a buffer sized to hold
+a maximum-length packet (64~bytes plus 8 bytes of padding to handle possible
+DMA overrun, 72 total).
+
+\section{Driver initialization and bulk transfer}
+
+The entry point for the driver, pointed to by the TPL entry, is at
+usb\_midi\_driver.  It calls USB\_CONFIGURE\_DEVICE to set the configuration
+and clean up the stack, then FIND\_IN\_OUT\_ENDPOINTS from qwerty.s to find
+the first input and first output endpoints in the array.  It checks that at
+least one input endpoint was actually found (triggering a device unsupported
+error if not) and calls MIDI\_INIT to start the backend MIDI driver.
+
+Then the main loop starts, at prepare\_bulk\_request.  It sets up the bulk
+in endpoint and IRP for a bulk in transfer with maximum packet size, and
+infinite NAKs allowed.  It also sets TOKEN\_ALLOWANCE to 2, to allow a
+baseline polling rate of 2000 polls per second.
+
+The wait\_for\_data label starts an inner loop which basically replaces the
+waiting loop of USB\_WAIT\_ON\_IRP, calling MIDI\_BACKGROUND and USB\_POKE
+until there is data available, with error and disconnect checking.  This
+loop increments TOKEN\_STORE on each cycle, so the actual polling rate will
+be faster than the 2\,kHz TOKEN\_ALLOWANCE, primarily limited by the time it
+takes to call MIDI\_BACKGROUND.
+
+\section{Packet decoding and garbage checking}
+
+Given a packet returned by the bulk endpoint, the first step is to check
+that the transfer length is at least 4 bytes, because valid transfers from a
+USB-MIDI device are always at least that long.
+
+One of my USB-MIDI devices (an Akai MPK Mini keyboard) has a habit of
+sending a 64-byte transfer of what seems to be random garbage upon initial
+connection.  To deal with that, and with other devices that may do something
+similar, there is a scan of the USB packet for invalid USB-MIDI data. 
+USB-MIDI formats its data as 32-bit packets, one or more of which may be
+stacked up in a single USB transfer.  Depending on the type of 32-bit
+packet, quite often only two or three bytes are used and the remaining bytes
+are supposed to be padded with zeros.  Any packet with nonzero data in what
+should be the padding bytes according to its apparent packet type, is not
+valid USB-MIDI data.
+
+So the validity check steps through each 32-bit packet in the buffer,
+looking at the low four bits of the first byte of the packet, which are a
+field named CIN from which we can infer the number of pad bytes.  Those bits
+are used as indices into the constants 0xB054, which identifies CIN values
+that have at least one pad byte, and 0x8020, which identifies CIN values
+that have two pad bytes.  All the pad bytes get checked, and if any are
+nonzero, then the whole USB transfer is discarded by a branch back to
+prepare\_bulk\_request.
+
+After the validity check, there is another loop over the 32-bit packets in
+the transfer, looking again at the CIN values.  USB-MIDI usually encodes one
+MIDI message (of up to three bytes) into each 32-bit packet.  The first byte
+contains the CIN field, which says what type of message it is and basically
+duplicates the function of the high nybble of the MIDI status byte.  The
+other half of the first byte is a ``cable number,'' which the Gracious Host
+ignores.  USB-MIDI also has a mode where it sends one byte of MIDI at a time
+instead of an entire message; that is indicated by a special CIN value.  So
+this loop checks first whether the packet's CIN value corresponds to a
+complete MIDI message we handle at all (some, such as System Exclusive and
+some reserved-for-future-use CIN values, at ignored).  If so, then the three
+bytes of the message are shuffled into the appropriate registers and a call
+to MIDI\_READ\_MESSAGE sends it to the backend.  Otherwise, CIN value is
+checked against 15, which indicates a single byte of MIDI data, and if that
+matches, the single byte is sent to the backend by a call to
+MIDI\_READ\_BYTE.  USB-MIDI stipulates that single-byte and single-message
+packets may be mixed; apparently, some devices really do that; and so the
+Gracious Host's MIDI backend is designed to support mixed calls to 
+MIDI\_READ\_MESSAGE and MIDI\_READ\_BYTE.
+
+The file concludes by a branch back to prepare\_bulk\_request to look for more
+data.

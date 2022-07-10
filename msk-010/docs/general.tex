@@ -1,0 +1,227 @@
+% $Id: general.tex 5678 2017-10-13 15:20:20Z mskala $
+
+%
+% MSK 010 general notes
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~010 Fixed Sine Bank, which is a
+control voltage generator module for use in a Eurorack modular synthesizer. 
+Each module contains eight analog sine oscillators, and the same parts can
+be assembled into three different variants of the module with different
+selections of output frequencies, so that with three modules, up to 24
+different nominal output frequencies are available.
+
+\section{Specifications}
+
+This module has no inputs.  The impedance of each output is approximately
+1k$\Omega$.  The open-circuit output voltage is approximately 10V peak to
+peak ($\pm$5V), but this will vary because of component tolerances and is
+not a guaranteed specification.  There may also be a transient outside the
+normal output voltage range for about half a cycle time during power-up. 
+Shorting any output to any fixed voltage at or between the power rails, or
+shorting two outputs to each other, is not recommended but should be
+harmless to the module; patching the MSK~010's output into some other
+module's output should be harmless to the MSK~010, though that is also not
+recommended because it is possible the non-MSK~010 module may be harmed.
+
+Nominal output frequencies range from 16mHz to 16Hz, depending on the build
+variant selected.  The frequencies will vary a few percent due to component
+tolerances, but should have good to very good temperature stability.
+
+This module (assuming a correct build using the recommended components) is
+protected against reverse power connection.  It will not function with the
+power reversed, but will not cause or suffer any damage.  Some other kinds
+of power misconnection may possibly be dangerous to the module or the power
+supply.
+
+Most of the current drawn from the power supply by this module goes to
+lighting up the LEDs, so the current demand fluctuates with the oscillator
+outputs.  In normal operation, the peak current demand is 40mA from each of
+the +12V and -12V supplies; the average is a fair bit less, more like 25mA. 
+For a few seconds during power-up it may require a few extra milliamps from
+the negative supply as the larger timing capacitors charge.  Placing a heavy
+load on the outputs (for instance, with so-called passive modules) will
+increase the power supply current.
+
+The circuit design can operate on $\pm$15V supplies, for use in non-Eurorack
+synthesizer formats, assuming all the components used are rated for the
+increased voltage.  There should be no need to change any resistor values or
+similar, as long as the nominal $\pm$5V output level is acceptable.  To
+achieve a different output level may require some trial and error with the
+Zener diode voltages; no other components need change.
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and PCB
+footprint libraries for Kicad.  Kicad doesn't normally keep dependencies
+like symbols inside a project directory, so on my system, these files
+actually live in a central directory shared by many projects.  As a result,
+upon unpacking the ZIP file you may need to do some reconfiguration of the
+library paths stored inside the project files, in order to allow the symbols
+and footprints to be found.  Also, this directory will probably contain some
+extra bonus symbols and footprints not actually used by this project,
+because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+The enclosed PCB design is for two boards, each
+3.90$''$\linebreak[0]$\times$\linebreak[0]1.50$''$, or
+99.06mm\linebreak[0]$\times$\linebreak[0]38.10mm.  They are intended to
+mount in a stack parallel to the Eurorack panel, held together with M3
+machine screws and male-female hex standoff hardware.  See
+Figure~\ref{fig:panel-stack}.  Including 18mm of clearance for the mated
+power connector, the module should fit in 43mm of depth measured from the
+back of the front panel.
+
+\begin{figure}
+{\centering
+\begin{tikzpicture}[scale=0.1]
+  \path[draw=black,dashed,thick] (24.2,-46.95) rectangle (42.2,-26.95);
+  \path[draw=black,fill=black!30!white] (-2.0,-64.25) rectangle (0,64.25);
+  \path[draw=black,fill=white] (0,-47.45) rectangle (10,-41.45);
+  \path[draw=black,fill=white] (0,47.45) rectangle (10,41.45);
+  \path[draw=black,fill=blue!50!white] (10,-49.53) rectangle (11.6,49.53);
+  \path[draw=black,fill=white] (11.6,-47.45) rectangle (22.6,-41.45);
+  \path[draw=black,fill=white] (11.6,47.45) rectangle (22.6,41.45);
+  \path[draw=black,fill=blue!50!white] (22.6,-49.53) rectangle (24.2,49.53);
+  \path[draw=black,fill=white] (24.2,-47.45) rectangle (26.2,-41.45);
+  \path[draw=black,fill=white] (24.2,47.45) rectangle (26.2,41.45);
+  \path[draw=black,fill=black!10!white] (26.2,-45.95) rectangle (28.2,-42.95);
+  \path[draw=black,fill=black!10!white] (26.2,45.95) rectangle (28.2,42.95);
+  \node at (5.0,53) {\parbox{10mm}{\centering \small 10mm standoff}};
+  \node at (17.1,53) {\parbox{11mm}{\centering \small 11mm standoff}};
+  \node at (13,64) {\small 2mm front panel};
+  \node at (18.4,60.5) {\small 2$\times$ 1.6mm PCBs};
+  \draw[>=latex',->,very thick] (10.8,58.7) -- (10.8,50.53);
+  \draw[>=latex',->,very thick] (23.4,58.7) -- (23.4,50.53);
+  \node at (33.2,-36.95)
+    {\parbox{17mm}{\centering \small 18mm clearance for mated power connector}};
+  \draw (42.2,-48) -- (42.2,-64);
+  \draw[>=latex',<->,thick] (0,-56) -- (42.2,-56);
+  \node[fill=white] at (21.5,-56) {\small $\approx$43mm depth};
+\end{tikzpicture}\par}
+\caption{Assembled module, side view.}\label{fig:panel-stack}
+\end{figure}
+
+\section{Component substitutions}
+
+You can change the frequencies of the oscillators by substituting different
+resistance and capacitance values, but there are a few things to be aware
+of.  First, the two frequency-determining resistors and the two
+frequency-determining capacitors in an oscillator unit, must match.  I
+specified 5\% capacitors and 1\% resistors.  Tolerances worse than these are
+unlikely to work, and 3\% capacitors (or hand-matching wider-tolerance caps
+to that spec) would be better.  I specified plastic film capacitors. 
+Tolerance and leakage issues pretty much rule out electrolytic capacitors;
+and issues of bad DC behaviour rule out silver mica and ferroelectric (X7R
+and similar) ceramic capacitors.  Using NP0 ceramic capacitors should be
+fine if you can find them in the proper tolerance, but that will usually
+mean settling for surface-mount.
+
+If you want very long cycle times, you'll probably be pushing both the
+capacitors and the resistors to the limit, and then it's a question of how
+much capacitance you can fit into the physical space (maybe you could go as
+high as 4.7$\mu$F and still fit the caps on the board) and how high an
+impedance you can use with the op amps.  The TL074 chips I use seem to
+perform very well at 10M$\Omega$ without the input bias
+current throwing off the high-impedance tuned circuit; I don't know how much
+higher in impedance they can go, but I wouldn't be surprised by at least
+another factor of ten, with careful attention to board cleaning and so on. 
+There may be sourcing problems when you try to obtain resistors bigger than
+10M$\Omega$ in 1\% tolerance.
+
+Be aware of the start-up issue: it takes at least a half cycle for each
+oscillator to settle down into its stable voltage level after power-up, and
+if you build one with a cycle time of many minutes, that startup time will
+be noticeable.  This is part of the price you pay for having a fully analog
+implementation; but compare to other analog sine oscillators, such as
+typical resonating synth filters, which typically have \emph{much longer}
+startup-time requirements in relation to their cycle times.
+
+Making the frequency adjustable with this circuit would not be easy because
+of the need to make two variable components vary at once and track each
+other.  The necessary level of matching is at the limits of what an
+inexpensive dual-gang potentiometer might be able to achieve, and trying to
+make it voltage controlled too would be even worse.  You're probably better
+off switching to some completely different design if you must have variable
+frequency.
+
+Swapping out the TL074 op amps for some other model is not recommended.  No
+relevant specification of this circuit would be improved by a ``better'' op
+amp, and op amps designed for audio use may lack the very high input
+impedance of the TL074, which is critically necessary for this circuit
+(especially in the longer cycle time oscillators).
+
+This circuit's output level is determined by 1N5229B Zener diodes running at
+significantly less than the 20mA nominal reverse current for which their
+voltage is officially specified, and as a result, their behaviour may be
+hard to predict, inconsistent from manufacturer to manufacturer, and so on. 
+I specified these, and the 27k$\Omega$ ballast resistors to go with them,
+after extensive testing with physical samples.  If you substitute these
+diodes, then test the diodes you plan to use carefully to make sure they
+give the output level you want.
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others---for instance, as a built hardware device---then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{http://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+The latest version of this document and the associated source files can be
+found at that Web site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

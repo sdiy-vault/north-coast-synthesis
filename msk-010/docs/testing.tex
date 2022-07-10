@@ -1,0 +1,211 @@
+% $Id: testing.tex 5678 2017-10-13 15:20:20Z mskala $
+
+%
+% MSK 010 testing instructions
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+\chapter{Testing}
+
+The MSK~010 requires no adjustment or trimming.  All the components are
+fixed-value.  It should simply work as soon as it's built.  Nonetheless, to
+guard against mistakes in construction, it's a good idea to do some simple
+tests before using it in an artistically critical situation.
+
+You will need at least your assembled module, a power supply for it, and a
+multimeter.  An oscilloscope would also be useful for troubleshooting, but
+is not really necessary.
+
+\section{Short-circuit test}
+
+With no power applied to the module, check for short circuits between the
+three power connections on the Board~2 Eurorack power connector.  The two
+pins at the bottom, marked with white on the circuit board, are for -12V. 
+The two at the other end are for +12V; and the remaining six pins in the
+middle are all ground pins.  Check between each pairing of these three
+voltages, in both directions (six tests in all).  Ideally, you should use a
+multimeter's ``diode test'' range for this; if yours has no such range, use
+a low resistance-measuring setting.  It should read infinite in the reverse
+direction (positive lead to $-$12V and negative lead to each of the other
+two, as well as positive lead to ground and negative to $+$12V) and greater
+than 1V or 1k$\Omega$ in the forward direction (reverse those three
+tests).  If any of these six measurements is less than 1k$\Omega$ or 1V,
+then something is wrong with the build, most likely a blob of solder
+shorting between two connections, and you should troubleshoot that before
+applying power.
+
+Plug the module into a Eurorack power supply and make sure
+neither it nor the power supply emits smoke, overheats, makes any unusual
+noises, or smells bad.  If any of those things happen, turn off the power
+immediately, and troubleshoot the problem before proceeding.
+
+\emph{Optional}: Plug the module into a Eurorack power supply
+\emph{backwards}, see that nothing bad happens, and congratulate yourself on
+having assembled the reverse-connection protective circuit properly. 
+Reconnect it right way round before proceeding to the next step.
+
+\section{Blinking lights}
+
+Plug the module into a Eurorack power supply and look at the lights on the
+front.  They should all fade from green to red and back, at different
+speeds, with the slowest one at lower left and the fastest at upper right. 
+The very fastest may change faster than your eye can follow, and appear
+solid yellow.  The very slowest may take over a minute to complete the
+cycle.
+
+When the module is first plugged in after having been turned off for a few
+seconds or more, all lights will probably glow \emph{bright} green, brighter
+than the green that appears in the usual cycle, for a short time as the
+oscillators start up.  This might last up to half a cycle time (about half a
+minute for the slowest oscillator).
+
+If any of the LEDs fail to light up at all, glow solid red or green (after
+the startup time) instead of cycling, or cycle at a rate much different from
+what you expected, then something may be wrong.  Disconnect the power and
+investigate what is wrong.
+
+\section{Oscilloscope test}
+
+Power up the module and connect an oscilloscope to each output in turn. 
+Each signal should look like a sine wave, with the frequency and period
+documented in the relevant ``Board~2'' chapter $\pm$15\%; amplitude
+10$\pm$2V peak to peak; and little enough harmonic
+distortion and noise that it looks ``clean'' on the scope.
+
+\section{Troubleshooting}
+
+It would require several books to convey all the skills and knowledge useful
+in troubleshooting even a simple electronic circuit like this one, but here
+are some possible symptoms and some suggestions on diagnosis and treatment.
+
+No response from the module at all; \emph{none} of the lights light up, no
+signal on the output.  Most likely a power problem, such as a power cable
+plugged in wrong or a short circuit.  It might even be a problem in the
+power supply and not the module itself.
+
+No oscillation in one or more oscillators; a light remains solid red or
+green for more than a minute, especially if it is brighter than normal.
+This could be caused by components being switched around; for instance, not
+the same value for the two time-determining resistors in an oscillator.  It
+also could be caused by bad soldering; check all your solder connections
+visually.  Note that ``solid yellow'' is normal for the
+highest-frequency oscillators; that is simply what a very rapid flash between
+red and green looks like to human eyes.
+
+During prototyping I also observed a problem of this kind that seemed to
+originate with solder flux contamination washed into the board-to-board
+connector during cleaning.  It appeared that solvent with dissolved flux in
+it had dried inside the connector and formed a varnish-like insulting film. 
+In one case all the lights went red on power-up and stayed that way; in
+another, just a couple of oscillators seemed to get stuck.  Both were
+resolved by unscrewing the standoffs and carefully unplugging and plugging
+back in the board-to-board connector a couple of times.  If you see a
+similar problem in your build, especially if you have solvent-cleaned your
+boards, it would be worth trying this as a first step before doing anything
+more drastic.
+
+An oscillator starts, runs for a few cycles, then dies out, with the light
+going dark.  This suggests the loop gain is too low.  It is designed with a
+moderate safety margin, so something has to be wrong for this to happen. 
+Components out of their tolerance range, with values close to the right ones
+but not as close as the specifications require, is one possibility.  Make
+sure any component substitutions you made were really appropriate. 
+Especially for the lowest-frequency oscillators (which use very high
+impedance), it's possible that solder-flux residue could also cause this
+kind of problem.  Try cleaning the boards with isopropyl alcohol and a
+brush.  If you used water-soluble flux for your soldering (not recommended),
+then you should clean with water first to remove any remaining flux, and
+then isopropyl alcohol to remove the water and any other contaminants.
+
+Four oscillators misbehave, in a checkerboard pattern.  That is, the
+oscillators connected to either J1, J3, J6, and J8; or J2, J4, J5, and J7. 
+Each of these sets of four is driven by one of the two TL074 chips, so if
+they are all bad in a set, it suggests something wrong with the
+corresponding TL074.  The \{J1,J3,J6,J8\} set is driven by U2 (on the bottom
+when the module is mounted vertically) and the \{J2,J4,J5,J7\} set is
+driven by U1 (on the top).  Check, for the relevant chip, that:
+\begin{itemize}
+  \item it really is a TL074, not some other kind of chip;
+  \item it is plugged in snugly;
+  \item all the legs of the chip go nicely into the corresponding holes in
+    the socket, with none bent outside or folded up under the chip;
+  \item it is plugged in \emph{at all} (forgetting to do so is a surprisingly
+    common mistake!);
+  \item it is plugged in the right way around, with the Pin 1
+    indentation or notch at the top and matching the other clues on the
+    board (if this is wrong, the chip is probably destroyed and will need to
+    be replaced);
+  \item there are no solder bridges on the chip socket, unsoldered pins,
+    debris clogging the socket holes, or similar;
+  \item its decoupling capacitors (the small ceramic ones) are installed and
+    there is nothing wrong with their solder joints; and
+  \item if all that turns up nothing, try swapping the two TL074s and see if
+    the set of failing oscillators also changes.
+\end{itemize}
+
+An oscillator's waveform as seen on an oscilloscope has excessive
+distortion, perhaps appearing more like a square wave or trapezoid, with or
+without rounded corners, instead of a proper sine.  This suggests the loop
+gain is too high; it's most likely caused by an incorrect resistor value. 
+Also check the amplitude-limiting components (Zener diodes and 27k$\Omega$
+resistors); if they are not properly connected, the result might be
+flattened waves combined with a much higher than normal amplitude.
+
+An oscillator's waveform as seen on an oscilloscope contains a significant
+amount of higher-frequency content, in the kHz or MHz range.  This might be
+just a ripple added to the desired low-frequency sine, or it might be a
+rail-to-rail square wave overwhelming everything else, at a much higher
+frequency than the module is intended to produce.  Either way, it suggests
+that the op amp is unstable, which should not be possible in this circuit
+with the recommended parts.  Check all the op amp troubleshooting points
+mentioned above, and try cleaning to remove solder residue.  See if a
+0.01$\mu$F capacitor connected temporarily in parallel with the op amp's
+22k$\Omega$ feedback resistor helps, but even if it does, it would be
+preferable to figure out what's really wrong instead of just soldering that
+in and hoping for the best.
+
+Regular high-frequency spikes superimposed on the oscillator output, with a
+repetition rate of twice the power-line frequency (120Hz in North America,
+100Hz in many other places): there may be some piece of electrical
+equipment, such as a lighting dimmer switch, putting interference into your
+mains grounding system.  I observed this while testing an MSK~010 prototype
+and it took me a while to figure out it was not something wrong with the
+prototype.  Make sure your oscilloscope is plugged into the same mains power
+circuit as your bench power supply, and try turning off any dimmer switches.
+
+The module seems to work for a while, but then suddenly fails with at least
+four LEDs going solid-colour or dark; it works again when you turn the
+power off and on again.  This suggests either or both of the
+chips have gone into ``latch-up,'' which could be triggered by spikes on
+the power supply, static electricity, or bad voltages applied to the output
+jacks; but also check the solder joints for any that may be loose.
+
+Apparent crosstalk between oscillators:  do not trust the LEDs as a way of
+detecting this.  The LEDs are driven by simple resistors from voltage
+sources; that means when the output voltage of a slow oscillator is close to
+the LED's minimum forward voltage for turning on, even the tiniest variation
+in voltage will push it back and forth across the boundary, resulting in a
+disproportionate fluctuation in light output.  Combining that effect with
+optical illusions and the power of suggestion, it is easy to think that you
+\emph{see} the slow oscillator LEDs wavering in time with the relatively
+fast ones, when you would not be able to \emph{hear} it.  The tiny amount of
+visible wavering or instability I've observed in my prototypes is best
+thought of as just part of the charm of analog, and not a problem.  However,
+a really large amount of crosstalk verifiable by objective measurement of
+the output waveforms may indicate issues with the ground connection from
+the module to the power supply.

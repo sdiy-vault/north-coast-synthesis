@@ -1,0 +1,732 @@
+% $Id: progtips.tex 9826 2022-02-09 20:05:05Z mskala $
+
+%
+% Programming tips for Gracious Host programming
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Programming tips, conventions, and tools}
+
+This chapter gives some general notes on programming the PIC24, as well as
+the conventions followed by the Gracious Host firmware.  Details of specific
+source files are in subsequent chapters.
+
+\section{Case and spelling}
+
+I usually like to give global symbols names in all caps, with words
+separated by underscores, like SAMPLE\_GLOBAL\_SYMBOL.  Local symbols are
+lowercase, like sample\_local\_symbol.  If I want to make something less
+visible in scopes where it has to exist for technical reasons, I usually put
+an underscore at the start, like the global symbol \_common which is only
+used inside macros.  Symbol names created by Microchip's tools often start
+with a double underscore and use other capitalization, like
+\_\_DefaultInterrupt.
+
+\section{Labels and indentation}
+
+I put labels on lines of their own, because that makes it easier to edit
+them.  Often it is desired to move a label without moving the instruction it
+points to, and trying to combine a label with an instruction on the same
+line would make that harder.  I also indent instructions, not labels, with
+one tab character to keep the listings consistently formatted.  Users of
+high-level ``structured'' programming languages should be aware that the
+customs of assembly language are different: nesting level of program control
+flow is \emph{not} normally indicated by indentation in assembly language --
+partly because assembly language often does not have a strict nesting
+structure anyway -- and indentation customs designed to explicate
+deeply-nested code structures are not relevant here.  Nonetheless, in some
+nested macro and conditional assembly directives where it seems to make
+sense, I do use a two-space indentation per level to make the structure
+clear.
+
+The assembler supports a feature called \emph{local symbols}.  The digits
+0 through 9 can be used as labels (like ``3:'') any number of times each
+without conflicting.  Then in any instruction you can refer to one of these
+digits with ``f'' for ``forward'' or ``b'' for ``back,'' and it will
+automatically refer to the next or previous instance of that label.  Here is
+an example.
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\>\insn{bra}\>1f ; skip past the do-nothing loop\\
+2:\\
+\>; do-nothing loop\\
+\>\insn{nop}\\
+\>\insn{nop}\\
+\>\insn{bra}\>2b\\
+1:\\
+\end{tabbing}
+
+Local symbols may be a somewhat controversial feature, because of a
+perception that they can cause bugs.  My own view is that they should be
+used frequently, whenever a label is referred to from nearby and does not
+need to be available at a greater distance.  Local symbols make it easier to
+cut and paste chunks of code without name collisions or unexpected control
+flow; I think they prevent more bugs than they cause.  Bearing in mind that
+this form of assembly language basically has no other way of scoping symbols
+narrower than an entire source file, it is useful to have a way to refer to
+``that instruction right \emph{there}, I know the one I mean'' without
+forcing the programmer to always invent a widely scoped unique name for it.
+
+The assembler implements local symbols by renaming them to ordinary symbols
+with control characters and serial numbers in their names.  The control
+characters are intended to be impossible to create any other way and thus
+not collide with ordinary programmer-specified symbol names, and the serial
+numbers are intended to prevent the local symbols from colliding with each
+other.
+
+\section{Calling conventions}
+
+Programming in assembly language makes it less necessary to have formal
+calling conventions of the kind that might be needed by a high-level
+language compiler.  Most subroutines are used in only a few places, and in
+general I feel free to modify the subroutine's input and output effects to
+suit the callers and vice versa.  When a subroutine is global (that is,
+visible outside the current source file) I try to document its conventions
+clearly in a comment at the start of the subroutine, but it is always a good
+idea to read the actual code to make sure there will not be unexpected side
+effects.
+
+Usually, subroutines take their inputs in low-numbered working registers
+like W2--W6 and return results in W0 or W1.  Low-level subroutines may also
+trash some of the low-numbered registers, but will usually try to leave
+higher-numbered registers unchanged.  That frees the higher-numbered
+registers for use by higher-level code that calls the low-level code, so in
+general, register numbers increase with higher levels of abstraction.
+
+In general, I do not store function arguments or results on the stack. 
+There is no flexible malloc()-style memory allocation in the firmware;
+dynamic memory allocation to the extent it is used is all on the stack.
+
+In some places, I use W14, the stack frame pointer that is special to the
+\insn{lnk}/\insn{ulnk} instructions, for special purposes.  Some of the USB
+code expects to work in buffers pointed to by W14.  The exception handling
+code saves and restores W14 as part of its own stack-frame handling.  This
+register is also used -- incompatibly with stack frames -- for the other
+thread's program counter in the multithreaded code of the calibration
+routine.
+
+\section{Conserving space}
+
+This microcontroller has a lot of speed and not very much memory.
+
+Some of Microchip's example USB programs for PIC24, when compiled by the C
+compiler they distribute, will not actually fit on this particular chip. 
+Microchip represents it as necessary and appropriate to pay them \$40 per
+month for an online-activated license key to restore the optimization
+features they deliberately crippled in their distribution of GNU~C, a demand
+that seems unlikely to be legal, let alone morally acceptable or appealing
+to my own sensibilities, given Microchip's obligations under the General
+Public License to the original authors of GNU~C.
+
+But even with uncrippled optimization, the C compiler would be hard pressed
+to fit everything into the microcontroller's memory -- especially given the
+additional demands associated with being able to re-flash the firmware from
+a USB source.  The Microchip-provided USB driver contains multiple
+abstraction layers not really relevant to hardware as small as ours, and it
+depends on language and library features like ``heap'' memory management. 
+It is really meant for use on larger members of the PIC24 family; our chip
+is near the bottom end of the range.
+
+When first planning this project, I thought it would be necessary to hold
+\emph{two copies} of the firmware in flash at a time, so that the old
+firmware could load the new and then transfer control, and that effectively
+halved the available space, increasing the pressure further.
+
+With all that in mind, the Gracious Host firmware is written in
+hand-optimized assembly language instead of C, with the priority pretty much
+always being smaller memory consumption in preference to speed or clarity. 
+It is possible that I have taken this emphasis too far, because as of this
+writing the firmware fills much less than half the space on the chip, even
+including some features I originally thought I might be forced to leave out. 
+My code has turned out to be tighter than I expected from my earlier tests
+and estimates.  But at least that means there is plenty of room for future
+expansion.  In this section, I go through some techniques that may be useful
+to programmers attempting to keep the code as small as possible.
+
+\subsection{Use space-saving instructions}
+
+The program memory address space is 24 bits, and so are the instruction
+words; so a single-word instruction cannot contain a whole program memory
+address when it also needs some bits to say what kind of instruction it is. 
+As a result, instructions affecting control flow tend to have ``long'' and
+``short,'' or ``far'' and ``near'' versions, depending on whether they use a
+second instruction word to have space for a full 24-bit address, or use some
+kind of abbreviated target (usually a 16-bit signed number of words offset
+from the current program counter) to keep the instruction to just one word. 
+But here's the thing:  we only have about 21K words of program memory on this
+particular chip.  A 16-bit offset is enough to hit any instruction from any
+other; so the short/near control-flow instructions are almost always good
+enough.
+
+As such, it's preferable to use unconditional \insn{bra} instead of
+\insn{goto}, and \insn{rcall} instead of \insn{call}.
+
+A similar issue applies to data:  some instructions that touch specified
+locations in data memory work better, or are only usable at all, for
+addresses located in the first 8K of the data memory space.  That is the
+range 0x0000 to 0x1FFF.  We only have 8K of RAM, but that RAM is not
+all within the first 8K of the address space because the RAM starts at 0x0800,
+after the 2K special function register area.  So the first 6K of RAM is more
+accessible than the final 2K.
+
+The Gracious Host firmware tries hard to first, keep all variables with
+defined locations allocated inside the first 6K of RAM (the final 2K should
+normally be part of the stack reservation), and second, make sure symbols
+and sections are marked up in such a way that the assembler will \emph{know}
+these addresses are in the first 6K and will allow accessing them with the
+better instructions.  In particular, the common\_data section defined in
+firmware.s is given the ``near'' attribute, so that variables defined within
+it should be available with instructions that make that assumption.
+
+The ``skip'' instructions, \insn{btsc}, \insn{btss}, \insn{cpseq},
+\insn{cpsgt}, \insn{cpslt}, and \insn{cpsne}, can often save an instruction
+here or there, especially when (as is often possible) they're combined with
+making one branch of an if/then/else unconditional.  Consider changing
+something like this:
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\>\insn{cp}\>W0, W1\\
+\>\insn{bra}\>lt, 1f\\
+\>\insn{mov}\>\#0x123, W2\\
+\>\insn{bra}\>2f\\
+1:\\
+\>\insn{mov}\>\#0x456, W2\\
+2:\\
+\end{tabbing}
+
+to something like this:
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\>\insn{mov}\>\#0x456, W2\\
+\>\insn{cpslt}\>W0, W1\\
+\>\insn{mov}\>\#0x123, W2\\
+\end{tabbing}
+
+Making the \insn{mov} \#0x456, W2 unconditional doesn't matter because it is
+immediately overwritten by the other branch if applicable, and this rewrite
+saves two instructions.  Note that compare and branch instructions, like
+\insn{cpbeq}, are mentioned in the assembly language manual because they are
+available in some other PIC24 families, but if you check the fine print you
+will realize that those are not actually available in PIC24F.
+
+\subsection{Sharing a tail}
+
+If two subroutines end with the same sequence of two or more instructions,
+then one of them can branch to the other.  This costs two cycles for the
+branch, but it saves $n-1$ instructions in each place where it's used. 
+Consider these two subroutines, which save and restore registers in the same
+way:
+
+\pagebreak
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>\insn{push}\>W0\\
+\>\insn{push}\>W1\\
+\>; do foolish things\\
+\>\insn{pop}\>W1\\
+\>\insn{pop}\>W0\\
+\>\insn{return}\\
+\\
+bar:\\
+\>\insn{push}\>W0\\
+\>\insn{push}\>W1\\
+\>; do barbaric things\\
+\>\insn{pop}\>W1\\
+\>\insn{pop}\>W0\\
+\>\insn{return}\\
+\end{tabbing}
+
+The last three instructions are the same for both, so we can replace
+those instructions in one subroutine with a branch to the other, saving two
+instruction words:
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>\insn{push}\>W0\\
+\>\insn{push}\>W1\\
+\>; do foolish things\\
+\>\insn{bra}\>RETURN\_W0\_1\\
+\\
+bar:\\
+\>\insn{push}\>W0\\
+\>\insn{push}\>W1\\
+\>; do barbaric things\\
+RETURN\_W0\_1:\\
+\>\insn{pop}\>W1\\
+\>\insn{pop}\>W0\\
+\>\insn{return}\\
+\end{tabbing}
+
+\subsection{Convenience labels}
+
+The Gracious Host firmware uses the tail-sharing technique above
+extensively, and some subroutine tails that seem like they may be of general
+interest are exported as global symbols with consistent names.  In
+particular, for returning from an ISR and restoring the first few working
+registers that have been pushed on the stack in ascending order, there are
+the labels RETFIE\_W0 and RETFIE\_W0\_1 through RETFIE\_W0\_5, defined in
+usb.s.  There is also ULNK\_RETURN, for returning from an ordinary
+subroutine while discarding a \insn{lnk}/\insn{ulnk} stack frame.
+
+Sharing a tail usually only saves space when the tail is at least two
+instructions long, because of the need for an unconditional branch to get to
+the shared tail.  But in some cases, when a subroutine only terminates
+through a jump anyway, it can be useful to share a single instruction. 
+Consider this ``while'' loop:
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+1:\\
+\>\insn{cp}\>W0, W1\\
+\>\insn{bra}\>gt, 2f\\
+\>; do things\\
+\>\insn{bra}\>1b\\
+2:\\
+\>\insn{return}\\
+\end{tabbing}
+
+The \insn{bra gt} instruction doesn't really need to go to \emph{that
+particular} \insn{return}; it could equally well point at \emph{any}
+\insn{return} \emph{anywhere}.  So if there is another \insn{return}
+somewhere in program memory, then we do not need this one in particular to
+exist at all.  The firmware provides a global label called RETURN\_INSN,
+pointing to a \insn{return} instruction that needed to exist anyway, so the
+branch that exits the loop can be changed to \insn{bra} gt, RETURN\_INSN
+and foo no longer needs a \insn{return} of its own.
+
+The firmware uses all-caps names ending in \_INSN for single-instruction
+convenience labels.  Others it provides are GOTO\_W4\_INSN, RESET\_INSN, and
+RETFIE\_INSN.
+
+PIC24 assembly language provides a special instruction called \insn{retlw},
+which is a \insn{return} that also moves a 10-bit literal value to a working
+register.  This seems to be intended for returning values from functions in
+higher level languages.  It's worth knowing about, but in fact I have seldom
+actually found it useful in assembly language.  Something similar that I
+have found useful is for a subroutine to return ``zero'' or ``non-zero''
+status to be checked by an instruction like \insn{bra z} in the caller; and
+to support that, there are global labels Z\_RETURN and NZ\_RETURN provided
+by the firmware.  A subroutine that wants to return with zero or non-zero
+status can \insn{bra} to the appropriate one of these.
+
+\subsection{Tail call and FALL THROUGH}
+
+Suppose the last thing one subroutine does is to call another, like this.
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>; do foolish things\\
+\>\insn{return}\\
+\\\\
+bar:\\
+\>; do barbaric things\\
+\>\insn{rcall}\>foo\\
+\>\insn{return}\\
+\end{tabbing}
+
+Then the \insn{rcall} can be changed to a \insn{bra}, eliminatng the
+\insn{return}.  The entirety of the call to foo is, in effect, being
+used as a shared tail.
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>; do foolish things\\
+\>\insn{return}\\
+\\
+bar:\\
+\>; do barbaric things\\
+\>\insn{bra}\>foo ; tail call\\
+\end{tabbing}
+
+I try to include a comment saying ``tail call'' whenever I use this
+technique, to make it clearer to readers that that is what's going on.
+
+We can use tail call for every subroutine that happens to end with a call to
+foo, however many of those there may happen to be.  However, with just one
+of them we can also eliminate the \insn{bra} instruction by reordering the
+subroutines to put the caller immediately before foo in memory and just
+letting execution continue past the end of the caller, like this:
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+bar:\\
+\>; do barbaric things\\
+\>; bra\>foo ; tail call\\
+\>; FALL THROUGH\\
+foo:\\
+\>; do foolish things\\
+\>\insn{return}\\
+\end{tabbing}
+
+When using the fall-through technique, I like to leave the \insn{bra}
+instruction that was eliminated in place in the source code but commented
+out, and add a comment saying ``FALL THROUGH,'' to make the special control
+flow more visible.  If I ever move the subroutines around again in the
+future, I want to be reminded that then I will need to put the \insn{bra}
+back in; and if I ever go looking for ``missing \insn{return} at the end of
+subroutine'' bugs, I want to be reminded that in this case it is being done
+on purpose.
+
+I also write ``FALL THROUGH'' comments in some other similar cases, such as
+in a couple of jump tables, whenever control is deliberately intended to
+proceed past a point where readers might expect it to go somewhere else.
+
+\subsection{Star section subroutines}
+
+If a sequence of $n$ instructions is used identically in $k$ different
+places in the code, it costs $nk$ ($n$ times $k$) instruction words.  If the
+control flow and stack effects do not make it a problem to do this, then
+those $nk$ instructions can be replaced with $n+k+1$ instructions by pulling
+it out into a subroutine: then there are $n$ \insn{rcall} instructions, plus
+$k$ for the one copy of the original sequence in the subroutine, and one
+more for the \insn{return}.  A sequence of two instructions can profitably
+be made into a subroutine if it is used in at least four places (eight
+instructions become seven); a sequence of three instructions needs to be
+used in three places to be profitably made into a subroutine; and four or
+more only need be used in two places.
+
+When the shared sequence is longer, it can be profitable to turn it into a
+subroutine even if the different copies are not \emph{identically} shared,
+or when there are in fact stack effects that make a subroutine call more
+complicated: the memory saving by having only one copy may be enough to pay
+for some additional instructions spent rearranging the stack or handling the
+differences between different calling cases.  The subroutine
+find\_press\_tbl\_entry in qwerty.s is an example where similar but not
+identical logic used in more than one place was first modified so that it
+could be identical, and then collapsed into a subroutine.
+
+Although I'm not sure every programmer would agree, I think that readability
+of collapsed identical instruction sequences can be improved by making use
+of the \emph{star section} feature of the toolchain.  A subroutine cannot be
+located in memory exactly where it is used; else we would need to somehow
+jump over it.  But the .pushsection assembler direction allows us to
+temporarily break out of the stream of instructions we were assembling, and
+write some instructions (namely, the subroutine we're defining) that will
+actually go somewhere else in memory.  Specifying the name of the new
+section as an asterisk tells the assembler to invent (gensym) a locally-valid
+name for it that will not conflict with anything else.  Then after writing
+the text of the subroutine, .popsection returns assembly to the original
+stream.  Putting the pieces together, we can define a subroutine in the
+source code in one of the places where it is called and where a human might
+want to read it, even though it will actually go somewhere else in memory
+and be callable elsewhere.
+
+Here's an example.  Note the instruction sequence limiting W0 to at most 100
+and copying it to W2.
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>; do stuff\\
+\>\insn{mov}\>\#100, W1\\
+\>\insn{cpslt}\>W0, W1\\
+\>\insn{mov}\>W1, W0\\
+\>\insn{mov}\>W0, W2\\
+\>; do stuff\\
+\>\insn{return}\\
+\\
+bar:\\
+\>; do other stuff\\
+\>\insn{mov}\>\#100, W1\\
+\>\insn{cpslt}\>W0, W1\\
+\>\insn{mov}\>W1, W0\\
+\>\insn{mov}\>W0, W2\\
+\>; do other stuff\\
+\>\insn{return}\\
+\end{tabbing}
+
+If we want to make those four instructions into a subroutine, we could put
+the subroutine somewhere else in the source file, but that would be harder
+to read.  Using a star section, we can put them inline while still getting
+the space saving:
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\\
+foo:\\
+\>; do stuff\\
+\>\insn{rcall}\>limit\_and\_store\_w0\\
+.pushsection *, code\\
+limit\_and\_store\_w0:\\
+\>\insn{mov}\>\#100, W1\\
+\>\insn{cpslt}\>W0, W1\\
+\>\insn{mov}\>W1, W0\\
+\>\insn{mov}\>W0, W2\\
+\>\insn{return}\\
+.popsection\\
+\>; do stuff\\
+\>\insn{return}\\
+\\
+bar:\\
+\>; do other stuff\\
+\>\insn{rcall}\>limit\_and\_store\_w0\\
+\>; do other stuff\\
+\>\insn{return}\\
+\end{tabbing}
+
+For a short subroutine it might even be worthwhile to include a copy of the
+eliminated instructions, commented out, at the site of the second call, just
+so readers will be able to know what the call does without
+cross-referencing.
+
+Putting a subroutine into a star section makes the linker's job more
+complicated, because it will have to find a place for one more section in
+the final memory map.  However, that can be an advantage: when the linker is
+trying to find places for all the code sections, fitting them in between
+things like the calibration page that need to be located at specific
+addresses, it benefits from having some small relocatable sections that can
+fit into otherwise hard-to-use gaps.  Creating at least a few of these small
+one-subroutine sections then tends to improve the overall efficiency of
+memory utilization.
+
+\section{Common data}
+
+Because of the small amount of RAM on the microcontroller chip, it is
+preferable to re-use the same RAM addresses as much as possible.  If two
+variables will never be used at the same time, then ideally they should go
+at the same address rather than having separate permanently assigned
+addresses.
+
+One way of re-using memory is to assign it dynamically at run time, either
+with stack frames (used often in the Gracious Host firmware) or with
+malloc()-style allocation infrastructure (not used in the Gracious Host
+firmware; too much overhead).  For sharing statically allocated addresses,
+the PIC24 toolchain has features to support \emph{data overlay} and
+\emph{common data} features, each of which has limited usefulness because of
+bugs in the assembler and linker.  Data overlay doesn't work because the
+linker adds up the lengths of overlaid sections when allocating memory,
+instead of taking their maximum; and common data doesn't work for our
+purposes because a symbol defined at an offset from a common symbol, loses
+the common attribute.  Instead of using the toolchain's broken support, the
+Gracious Host firmware simulates common data using macros and a little bit
+of manual bookkeeping.
+
+The framework code in firmware.s defines a ``common data'' area to be shared
+by all modules that wish to use this support.  The size is set to 1542 bytes
+by the \_\_common\_size symbol in global.inc; that represents the largest
+amount of common data needed by any module in the current firmware.  That is
+the loader: it uses 1536 bytes to buffer one page of program memory for
+flash rewriting, plus six bytes of miscellaneous variables.  This allocation
+would need to be enlarged if some new module needed more.  The common data
+area is tagged ``near'' to ask the linker to keep it within the first 8K of
+data memory, allowing the use of shorter instructions; in practice, it is
+likely to be allocated at address 0x0850, immediately after the in-circuit
+debugging reservation.
+
+The global.inc file also defines a macro called \insn{in\_common} which is
+used for allocating variables within the common area.  Call this macro with
+a label and size to allocate a symbol of the specified size in the common
+area, as follows.
+\begin{tabbing}
+\insn{in\_common}\quad\quad foo, 2\\
+\insn{in\_common}\quad\quad bar, 4\\
+\insn{in\_common}\quad\quad baz, 2\\
+\end{tabbing}
+
+The \insn{in\_common} macro allocates symbols consecutively into the common
+area, without doing any automatic alignment.  Each source file starts fresh
+at offset zero in the common area, so symbols from different source files
+will overlay each other; it is also possible to start over within a source
+file by zeroing \_\_common\_loc, as is done in loader.s.
+
+The calibration routine, the loader, the part of the general USB code that
+identifies what kind of device is attached, and several of the per-device
+USB drivers all use the common area.  The MIDI backend and the USB I/O
+routines that might be called during device driver operation, do not.  In
+general, code that may be called from another high-level module should not
+touch the common area, but high-level modules like these, of which only one
+is active at a time, may use the common area.  The FIND\_IN\_OUT\_ENDPOINTS
+routine in qwerty.s is a special case: it assumes a specific layout of
+endpoint data structures at the start of the common area, and other drivers
+that share this routine (such as the USB MIDI driver) must define equivalent
+fields at the same locations.
+
+\section{Exception handling}
+
+Catch and throw exception handling is implemented in utils.s by means of the
+global symbols TRY, TRIED, and THROW.  Example code for using them looks
+something like the following.
+
+\begin{tabbing}
+\qquad\=\qquad\qquad\=\kill
+\>\insn{mov}\>\#handle(catch), W1\\
+\>\insn{rcall}\>TRY\\
+\>\quad; ...\\
+\>\quad; if an exception occurs:\\
+\>\quad\insn{rcall}\>\quad THROW\\
+\>\quad; ...\\
+\>\quad; also useful as branch target:\\
+\>\quad\insn{bra}\>\quad z, THROW\\
+\>\quad; ...\\
+\>; if no exception:\\
+\>\insn{rcall}\>TRIED\\
+\>; ...\\
+\\
+catch:\\
+\>; exception handler \\
+\end{tabbing}
+
+The call to TRY starts an exception-handling context, which
+will last until the matching call to TRIED.  Exception-handling contexts can
+be nested.  Each exception-handling context is associated with a three-word
+frame set up on the stack.  The call to TRIED, for non-exceptional
+execution, should be made with the same stack pointer that existed
+immediately after the return from TRY (thus, normally in the same subroutine
+or at the same nesting depth).  But THROW may be called, or branched to, at
+arbitrary stack depth, and it restores the stack to its pre-TRY condition,
+including the frame pointer W14, when it jumps to the exception handler
+address set by the TRY call.  That is the intended purpose of exception
+handling: a nested subroutine can signal an exception by calling THROW to
+blow out of a variable number of levels of nesting, to get to the
+outer-level code that expects to handle the exception.
+
+Put the address of the exception handler in W1 when calling TRY.  Code
+symbol addresses need to be marked with the handle() operator, as shown in
+the example, to typecast their officially 24-bit values into 16-bit values
+that will fit in data registers.  The assembler will complain if this
+casting is not done.  On our chip, the high byte of a program memory address
+is always zero anyway, so cutting the 24-bit address to 16 bits is easy and
+harmless.  On other PIC24 chips, handle() might do more elaborate things
+like forcing the toolchain to create a jump table in low memory, allowing a
+call to the 16-bit address to lead to code elsewhere in the 24-bit space.
+
+All three of TRY, TRIED, and THROW trash the W0 register.
+
+The framework code in firmware.s creates an initial, default context whose
+handler is RESET\_INSN, so a stray THROW in arbitrary code will reset the
+module.  Exception handling is used extensively in the general USB driver
+for handling error exits from per-device drivers, and in the targeted
+peripherals list (next section) for detecting a successful device or
+interface match.  A few per-device drivers may use it internally for their
+own purposes.
+
+\section{Linker-supported tables}
+
+The PIC24 linker is capable of doing complicated things in the line of
+arranging pieces of code from different source files according to
+constraints stated in a \emph{linker script}.  The Gracious Host uses a
+customized linker script to do what software ``engineers'' might call
+dependency injection.  Code defining per-device drivers is inserted into the
+USB device-recognition code, without each driver needing to be mentioned in
+the general USB source file.  Using the linker to provide this abstraction
+means the core USB code does not require changes when support for new
+devices is added.  They can be just defined in their own source files and
+added to the list of linked object files in the Makefile.  The same
+mechanism is used to gather together information about all the
+typing-keyboard maintenance codes in the current configuration, defined in
+whichever source files contain the actual code to support them without
+requiring updates to the keyboard driver as codes are added or changed. 
+Changes to these things are made in as few files as possible, reducing the
+opportunity for bugs to be introduced by failing to keep disparate files
+synchronized.
+
+In more detail:  when any USB host detects a device has been inserted, it
+retrieves a \emph{device descriptor} from the device, through which the
+device identifies both the general type of device it is and its specific
+manufacturer and model; and then one or more \emph{interface descriptors},
+through which the device describes which standard or non-standard USB
+protocols it can support.  USB hosts in general are supposed to check this
+information against a \emph{targeted peripherals list} (TPL), to see whether
+they can talk to the inserted device and if so, which driver to use.  The
+necessary matching may be complicated because there may be drivers for
+specific devices; for specific classes of devices; or for specific
+interfaces within a device; and sometimes more than one driver could
+possibly match a given device and it is necessary to choose which one is
+preferable, which will normally be the one with the narrowest scope, more
+specifically tailored to that particular device.
+
+The Gracious Host implements the TPL by splitting it into a \emph{targeted
+device list} (TDL) and a \emph{targeted interface list} (TIL), each of which
+is a chunk of executable code.  Upon loading the device descriptor, the
+general USB driver executes the TDL under certain calling conventions.  The
+TDL is expected to throw an exception if some driver takes responsibility
+for the device, with W4 pointing at the driver in question.  Otherwise, the
+USB driver loops over the interface descriptors, executing the TIL for each
+one, until the TIL throws an exception if there is a driver matching the
+interface, again with W4 pointing at the driver.  Finally, if no exception
+has been thrown, the general USB driver treats the device as unrecognized.
+
+Source files for device drivers register themselves as being able to handle
+specific devices, by defining code snippets to recognize those devices and
+requesting the linker insert those snippets in the TDL or TIL.  There are
+some utility subroutines available for use in the snippets to handle common
+types of matching.  The code snippets go in assembly-language sections with
+special names, that are picked up by the linker script and gathered together
+with similar snippets from other drivers, eventually inserted at the
+appropriate points in the USB code.  The order of execution for TDL and TIL
+entries is significant, because the first code snippet to recognize the
+device or interface and throw its exception will determine which driver
+executes.  In fact, a system as small as the Gracious Host is unlikely to
+need any really complicated logic for choosing among device drivers; but
+given I was implementing this support at all, it costs very little to make
+it flexible.
+
+Details of the calling conventions for TDL and TIL code are discussed in the
+chapter on the usb.s source file.  From the point of view of the linker, the
+precedence order is as follows.  Choosing the section names carefully gives
+fine-grained control over which fragments execute first, and therefore which
+drivers take priority over others.
+
+\begin{itemize}
+  \item The entire TDL runs before the TIL, so any match on the TDL takes
+    precedence over any match on the TIL.
+  \item TDL sections with numeric-suffix names ``tdl00'' through ``tdl49'' run
+    first, in increasing order by number.
+  \item Sections named ``tdl'' or starting with ``tdl\_'' run next, in
+    arbitrary order.
+  \item TDL sections with numeric-suffix names ``tdl50'' through ``tdl99'' run
+    last within the TDL, in increasing order by number.
+  \item The entire TIL runs for each interface descriptor, in the order
+    interface descriptors are returned by the device, so any match on an
+    earlier-returned interface descriptor takes priority over any match on
+    a later descriptor.
+  \item TIL sections with numeric-suffix names ``til00'' through ``til49''
+    run before other TIL entries, in increasing
+    order by number.
+  \item Sections named ``til''; ``tpl''; or starting with ``til\_'' or
+    ``tpl\_'' run next, in arbitrary order.
+  \item TIL sections with numeric-suffix names ``til50'' through ``til99''
+    run last, in increasing order by number.
+\end{itemize}
+
+In most cases the order of executioon is not actually important, and most
+drivers are expected to use section names like tdl\_foo and til\_foo,
+identifying themselves for clearer visibility in debugging output; the other
+names supported by the linker script are intended for special circumstances
+when one driver needs to do its checks before or after another driver.
+
+Similar, but simpler, linker handling is used to define maintenance codes
+for the typing keyboard driver in qwerty.s.  Here the fragments from
+different source files are used to define a table of keyboard codes and jump
+destinations that, although it is defined in program memory, is scanned as
+data and not executed as code.  Each entry should be two words: first word
+the maintenance code for the user to type, in BCD, and second word the
+address to jump to.  Entries from sections named ``mtbl'' or starting with
+``mtbl\_'' will be gathered together to create the table.  The order of
+entries is not expected to be important.  For more information, see the
+qwerty.s source file and the chapter documenting it.

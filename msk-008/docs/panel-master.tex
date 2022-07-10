@@ -1,0 +1,204 @@
+% $Id: panel-master.tex 9376 2021-08-31 13:12:43Z mskala $
+
+%
+% MSK 008 panel design (master)
+% Copyright (C) 2017  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={40.30mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay,scale=0.10]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50,3.00)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50,125.50)$) {};
+  \coordinate (lrrh) at ($(o)+(32.90,3.00)$) {};
+  \coordinate (urrh) at ($(o)+(32.90,125.50)$) {};
+  \coordinate (lbh) at ($(o)+(0.80*25.4,0.78*25.4)$) {};
+  \coordinate (ubh) at ($(o)+(0.80*25.4,4.28*25.4)$) {};
+  \coordinate (j2) at ($(o)+(0.325*25.4,3.43*25.4)$) {};
+  \coordinate (j3) at ($(o)+(0.325*25.4,2.58*25.4)$) {};
+  \coordinate (j4) at ($(o)+(0.325*25.4,1.73*25.4)$) {};
+  \coordinate (j7) at ($(o)+(0.325*25.4,0.88*25.4)$) {};
+  \coordinate (j1) at ($(o)+(1.275*25.4,3.43*25.4)$) {};
+  \coordinate (j5) at ($(o)+(1.275*25.4,2.58*25.4)$) {};
+  \coordinate (j6) at ($(o)+(1.275*25.4,1.73*25.4)$) {};
+  \coordinate (j8) at ($(o)+(1.275*25.4,0.88*25.4)$) {};
+  \coordinate (d11) at ($(o)+(0.50*25.4,1.28*25.4)$) {};
+  \coordinate (d12) at ($(o)+(1.45*25.4,1.28*25.4)$) {};
+  \coordinate (sw1a) at ($(o)+(0.325*25.4,4.18*25.4)$) {};
+  \coordinate (sw1b) at ($(o)+(0.325*25.4,4.18*25.4-6.1)$) {};
+  \coordinate (sw2a) at ($(o)+(1.275*25.4,4.18*25.4)$) {};
+  \coordinate (sw2b) at ($(o)+(1.275*25.4,4.18*25.4-6.1)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (40.30,128.50);
+%  panel graphics
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners={25.4*3/8}]
+    ($(j7)+(-25.4/4,-25.4/4)$) rectangle ($(j2)+(25.4/4,25.4/4)$);
+  \draw[very thick,black,fill=blue!30!black]
+    ($(j7)+(-25.4/4,25.4*7/16)$) -- ($(j7)+(25.4/4,25.4*7/16)$)
+    [rounded corners={25.4*3/8}]
+    -- ($(j7)+(25.4/4,-25.4/4)$) -- ($(j7)+(-25.4/4,-25.4/4)$)
+    [sharp corners] --cycle;
+  \draw[very thick,black,fill=blue!15!black!30!white,
+        rounded corners={25.4*3/8}]
+    ($(j8)+(-25.4/4,-25.4/4)$) rectangle ($(j1)+(25.4/4,25.4/4)$);
+  \draw[very thick,black,fill=blue!30!black]
+    ($(j8)+(-25.4/4,25.4*7/16)$) -- ($(j8)+(25.4/4,25.4*7/16)$)
+    [rounded corners={25.4*3/8}]
+    -- ($(j8)+(25.4/4,-25.4/4)$) -- ($(j8)+(-25.4/4,-25.4/4)$)
+    [sharp corners] --cycle;
+%
+  \draw[very thick,black,densely dotted] (j3)
+    .. controls ($(j3)!0.4!(j5)+(0,-25.4/4)$)
+            and ($(j3)!0.6!(j5)+(0,-25.4/4)$)
+    .. (j5);
+  \draw[very thick,black,densely dotted] (j4)
+    .. controls ($(j4)!0.4!(j6)+(0,-25.4/4)$)
+            and ($(j4)!0.6!(j6)+(0,-25.4/4)$)
+    .. (j6);
+%
+  \node at ($(j1)!0.5!(j2)$) {\large QUA};
+  \node at ($(j3)!0.5!(j5)$) {\large CV1};
+  \node at ($(j4)!0.5!(j6)$) {\large CV2};
+  \node at ($(j7)!0.5!(j8)+(0,25.4*3/16)$) {\large OUT};
+  \node at ($(sw1a)+(0,25.4*3/8)$) {\large +1};
+  \node at ($(sw1a)+(0,-25.4*3/8)$) {\large -1};
+  \node at ($(sw2a)+(0,25.4*3/8)$) {\large +1};
+  \node at ($(sw2a)+(0,-25.4*3/8)$) {\large -1};
+%
+  \node at ($(current page.north)+(0,-4.0)$) {\large MSK 008};
+  \node at ($(current page.north)+(0,-9.0)$)
+    {VC OCTAVE SWITCH};
+  \node at ($(current page.south)+(0,9.0)$)
+    {\parbox{1.0in}{\center NORTH~COAST SYNTHESIS}};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60];
+  \draw (ulrh) circle[radius=1.60];
+  \draw (lrrh) circle[radius=1.60];
+  \draw (urrh) circle[radius=1.60];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=1.60];
+  \draw (ubh) circle[radius=1.60];
+  % eight jacks with M6 threads
+  \draw (j1) circle[radius=3.15];
+  \draw (j2) circle[radius=3.15];
+  \draw (j3) circle[radius=3.15];
+  \draw (j4) circle[radius=3.15];
+  \draw (j5) circle[radius=3.15];
+  \draw (j6) circle[radius=3.15];
+  \draw (j7) circle[radius=3.15];
+  \draw (j8) circle[radius=3.15];
+  % two LEDs, 5.10mm holes
+  \draw (d11) circle[radius=2.55];
+  \draw (d12) circle[radius=2.55];
+  % two toggle switches, 6.35mm+2.38mm holes per manufacturer's spec
+  \draw (sw1a) circle[radius=3.175];
+  \draw (sw1b) circle[radius=1.19];
+  \draw (sw2a) circle[radius=3.175];
+  \draw (sw2b) circle[radius=1.19];
+  \fi
+%
+  % draw centres (for manufacturing art)
+  \ifcentres
+  % panel-to-rails mounting holes, to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35];
+  \draw (ulrh) circle[radius=0.35];
+  \draw (lrrh) circle[radius=0.35];
+  \draw (urrh) circle[radius=0.35];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=0.35];
+  \draw (ubh) circle[radius=0.35];
+  % eight jacks with M6 threads
+  \draw (j1) circle[radius=0.35];
+  \draw (j2) circle[radius=0.35];
+  \draw (j3) circle[radius=0.35];
+  \draw (j4) circle[radius=0.35];
+  \draw (j5) circle[radius=0.35];
+  \draw (j6) circle[radius=0.35];
+  \draw (j7) circle[radius=0.35];
+  \draw (j8) circle[radius=0.35];
+  % two LEDs, 5.10mm holes
+  \draw (d11) circle[radius=0.35];
+  \draw (d12) circle[radius=0.35];
+  % two toggle switches, 6.35mm+2.38mm holes per manufacturer's spec
+  \draw (sw1a) circle[radius=0.35];
+  \draw (sw1b) circle[radius=0.35];
+  \draw (sw2a) circle[radius=0.35];
+  \draw (sw2b) circle[radius=0.35];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,lbh,ubh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3];
+    \draw ($(\screwname)+(50:3.0)$)--($(\screwname)+(220:3.0)$);
+    \draw ($(\screwname)+(40:3.0)$)--($(\screwname)+(230:3.0)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {j1,j2,j3,j4,j5,j6,j7,j8} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15)$) circle[radius=4];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2];
+  }
+  % toggle switches
+  \path[draw=black,fill=black!20!white] (sw1a) circle[radius=6.1];
+  \path[draw=black,fill=black!15!white] (sw1a) circle[radius=3];
+  \path[draw=black,fill=black] (sw1a) circle[radius=2];
+  \path[draw=black,fill=black!15!white]
+    ($(sw1a)+(1.5,0)$)--($(sw1a)+(1.5,6)$)
+    arc[radius=1.5,start angle=0,end angle=180]
+    --($(sw1a)+(-1.5,0)$)
+    arc[radius=1.5,start angle=180,end angle=360];
+  \path[draw=black,fill=black!20!white] (sw2a) circle[radius=6.1];
+  \path[draw=black,fill=black!15!white] (sw2a) circle[radius=3];
+  \path[draw=black,fill=black] (sw2a) circle[radius=2];
+  \path[draw=black,fill=black!15!white]
+    ($(sw2a)+(1.5,0)$)--($(sw2a)+(1.5,6)$)
+    arc[radius=1.5,start angle=0,end angle=180]
+    --($(sw2a)+(-1.5,0)$)
+    arc[radius=1.5,start angle=180,end angle=360];
+  % LEDs
+  \path[shading=ball,left color=green,right color=red]
+    (d11) circle[radius=2.50];
+  \path[shading=ball,left color=green,right color=red]
+    (d12) circle[radius=2.50];
+  \fi
+\end{tikzpicture}%
+\end{document}

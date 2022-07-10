@@ -1,0 +1,205 @@
+% $Id: general.tex 9373 2021-08-30 21:03:39Z mskala $
+
+%
+% MSK 012 manual introduction/general stuff
+% Copyright (C) 2017, 2021  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~012 Transistor ADSR, which is an envelope
+generator for use in a Eurorack modular synthesizer.
+It implements a traditional attack-decay-sustain-release envelope without
+using any integrated circuits, performing all the logic and other active
+functions with discrete transistors and diodes.
+
+\section{Specifications}
+
+The module's peak current requirement in ordinary use is 10mA on the $+$12V
+supply and 5mA on the $-$12V supply; most of the time it will draw much
+less.  Unusual loads on the output, including so-called ``passive''
+modules, may cause the MSK~012 to draw more than this amount of current.  It
+does not require $+$5V power.
+
+The input impedance is nominally 100k$\Omega$.  The maximum output impedance
+is about 3.5k$\Omega$ (low side) or 1k$\Omega$ (high side).  Shorting the
+input or output to any fixed voltage at or between the power rails should be
+harmless to the module; patching the MSK~012's output into the output of
+some other module on the same power system should be harmless to the
+MSK~012, though doing that is not recommended because it is possible the
+other module may be harmed.
+
+Attack time is adjustable from about 40$\mu$s to 1.9s in three ranges; decay
+time from about 6$\mu$s to 6.8s; and release time from about 8$\mu$s to
+9.5s.  All these values were measured on a prototype and may vary a little
+with component tolerances.  The attack curve is concave downward and decay
+and release are concave upward.
+
+The peak voltage of the envelope is fixed at about 8V; sustain voltage
+ranges between 0V and the peak.  The input uses a Schmitt trigger (not
+dependent on fast edges), turning on at about 2V and off at about 1V.  The
+input is treated as a gate, not a trigger:  when it goes low, the module
+immediately goes into the release phase (whether it was previously in
+attack, decay, or sustain) and when it goes high, the module
+immediately goes into the attack phase (regardless of whether the release
+had completed).
+
+This module (assuming a correct build using the recommended components) is
+protected against reverse power connection.  It will not function with the
+power reversed, but will not suffer or cause any damage.  Some other kinds
+of misconnection may possibly be dangerous to the module or the power
+supply.
+
+\section{Front panel controls and connections}
+
+Here's a summary of the items on the front panel of the module.  All four
+knobs are logarithmic (``audio'') taper.
+
+\begin{description}
+  \item[A knob] attack time
+
+  \item[D knob] decay time
+
+  \item[S knob] sustain level
+
+  \item[R knob] release time
+  
+  \item[range switch] sets the general range of the three timing knobs, up
+    for slow and down for fast (labelled as such), or in the unlabelled centre
+    position for very fast
+
+  \item[G input] gate control voltage
+  
+  \item[E output] envelope control voltage
+\end{description}
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and
+PCB footprint libraries for Kicad.  Kicad doesn't normally keep dependencies
+like symbols inside a project directory, so on my system, these files
+actually live in a central directory shared by many projects.  As a result,
+upon unpacking the ZIP file you may need to do some reconfiguration of the
+library paths stored inside the project files, in order to allow the symbols
+and footprints to be found.  Also, this directory will probably contain some
+extra bonus symbols and footprints not actually used by this project,
+because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+This module is built on a single PCB
+4.20$''$\linebreak[0]$\times$\linebreak[0]1.25$''$, or
+106.68mm\linebreak[0]$\times$\linebreak[0]31.75mm, which mounts
+perpendicular to the front panel.  With about another 1mm
+of gap between the PCB and panel, the total depth requirement is 33mm.
+
+\section{Component substitutions}
+
+This circuit should work with most general-purpose bipolar transistors; I
+specify 2N5088 and SS8550D (formerly, PN200A).  These are high-gain types. 
+I use these same transistors in other North Coast projects.  The output
+buffer transistors (Q4 and Q5) are the ones where the gain matters most; be
+careful substituting those.
+
+You can substitute other capacitor values to change the overall speed of the
+envelopes.  However, I would not recommend using electrolytics because of
+their higher leakage, which could be a problem for the long envelope times
+where they'd be most likely used; and although substituting a smaller value
+for C3 to make the fastest envelopes even faster will work up to a point, I
+don't recommend it.  Most people who think they want extremely fast
+envelopes are wrong.  The problems they think they can hear that they think
+are caused by the envelope not being fast enough are more often caused by
+the envelope being \emph{already much too fast}, and will not be solved by
+making it even faster.  Also, I encountered some stability problems with
+this module's circuit on the breadboard with a value of 0.01$\mu$F for C3,
+specifically that the module would go into oscillation when the
+\emph{decay} (not attack) was set to its absolute minimum time.  I
+couldn't reproduce that with a module built on a PCB, so I think it was
+caused by stray impedances on the breadboard, and the final design value for
+C3 is 0.033$\mu$F anyway (to make the longer times in the fastest range more
+convenient).  But it suggests that there are some limits to how far into the
+ultrasonic it's reasonable to push this module's timing.
+
+\section{Modification for $\pm$15V power}
+
+To modify the circuit to run on $\pm$15V power while keeping roughly the
+same output voltage range, make sure all components are rated for the
+increased voltage, and try changing these resistors.
+
+\begin{itemize}
+\item R7 (upper limit of sustain level):  change from 20k$\Omega$ to
+  33k$\Omega$.
+\item R16 (sensitivity for end-of-attack detector):  change from 27k$\Omega$
+  to 18k$\Omega$.
+\end{itemize}
+
+For a higher output peak on $\pm$15V power, R7 will need to decrease and R16
+increase; for a lower peak, the other way around.  These values were
+determined by simulation, not testing a real instance of the circuit, so
+some breadboarding and experimentation may be necessary.
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others---for instance, as a built hardware device---then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{https://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+Even if you only use the free plans and cannot buy the commercial products I
+sell, any assistance you can offer to increasing the profile of North Coast
+would be much appreciated.  For instance, you might post photos of your
+completed DIY build on your social media.  The latest version of this
+document and the associated source files can be found at the North Coast Web
+site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

@@ -1,0 +1,94 @@
+% $Id: introduction.tex 9826 2022-02-09 20:05:05Z mskala $
+
+%
+% MSK 014 programmer's manual introduction
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Introduction}
+
+This manual documents the MSK~014 Gracious Host from a programmer's
+perspective.  The Gracious Host is a module for use in a Eurorack modular
+synthesizer, with the main function of interfacing USB MIDI controller
+devices to CV/gate synthesizer patches.  It can be programmed in the field
+with alternate firmware, potentially allowing an unlimited range of other
+functions, and this manual is intended for programmers interested in
+creating alternate firmware, modifying the standard firmware, or studying
+how it works.
+
+Writing software for the Gracious Host requires many skills, and a deep
+understanding of software and hardware engineering issues that are not taught
+in this manual.  This is primarily a reference for qualified programmers,
+not a tutorial.  Most users of the module will not be well served by
+attempting to modify the firmware themselves, and would do better to read
+the \emph{MSK~014 Gracious Host User/Build Manual} (UBM) instead of this
+one.  This manual assumes knowledge of the material included there.  You
+will also need the manuals, data sheets, and errata published by Microchip
+Corporation for the PIC24F microcontroller family; the PIC24FJ64GB002 chip
+in particular; the other chips on the board; the assembler and linker (both
+the software tools and the manuals for them); and so on.
+
+\section{This manual's organization}
+
+After this introduction, there are a couple of chapters describing the
+hardware; then the bulk of the manual is about the standard firmware,
+structured as a chapter on tools and building, one on code conventions and
+programming tips, then a chapter for each major source file.  The source
+chapters are arranged by increasing abstraction level from basic services
+close to the hardware, through core subsystems like the USB host driver and
+MIDI backend, and finally to the per-device USB drivers, which are basically
+applications running on top of the core subsystems.  The manual ends with a
+glossary mostly focused on expanding the (many) abbreviations used in my and
+Microchip's documentation.  Most all-caps abreviations including TLAs, and
+many terms used in \emph{italics}, are defined in the glossary.
+
+Assembly language instructions are printed in lowercase bold, like
+\insn{nop}.  Prefix 0x indicates hexadecimal and other numbers are decimal,
+as in 0xF00 = 3840.
+
+\section{A note on standards}
+
+The Gracious Host is intended to work with USB and MIDI devices but it is
+not a compliant implementation of the associated standards.  Both USB and
+MIDI are managed by industry organizations who attempt to enforce rules on,
+and collect high membership fees from, companies who use their trademarks or
+advertise standards compliance.  As such, it would be inadvisable to use the
+trademarked logos of those organizations in connection with the Gracious
+Host.
+
+\section{Use and contact information}
+
+This module design, including the firmware described in this manual, is
+released under the GNU GPL, version 3, a copy of which is in the source code
+package in the file named \texttt{COPYING}.  One important consequence of
+the license is that if you create new firmware incorporating parts of my
+standard firmware and you distribute the modified firmware in binary form --
+for instance, as a loadable firmware image or loaded into a Gracious Host
+module -- then you are obliged to make the source code available to
+whoever gets the binary.  You are not permitted to limit others' freedoms to
+redistribute the code and make further modifications of their own.
+
+I sell the Gracious Host and other modules, both as fully assembled products
+and do-it-yourself kits, from my Web storefront at
+\url{https://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free.  The
+latest version of this document and the associated source files can be found
+at that Web site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

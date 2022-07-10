@@ -1,0 +1,159 @@
+% $Id: utilss.tex 9738 2021-12-23 21:06:33Z mskala $
+
+%
+% Miscellaneous utilities
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Miscellaneous utilities (utils.s)}
+
+The utils.s source file contains a few small subroutines that may be used
+in multiple places throughout the firmware.
+
+\section{Exceptions}
+
+The API for exceptions is described in the ``Programming tips, conventions,
+and tools'' chapter of this manual.
+
+As for the implementation:  a static variable named exception\_frame records
+the currently active exception frame.  It literally points at the word just
+after the exception frame, because it records the value of the stack pointer
+(W15, next available word of stack) immediately after the three-word
+exception frame was pushed on the stack.
+
+The exception frame consists of three words:  first word stores the old
+value of the exception\_frame variable, second word stores the old value of W14
+(hardware local variable stack frame), and third word stores the program
+memory address of the exception handler.
+
+TRY creates one of these exception frames.  It pops the caller's return
+address, builds the frame on the stack, and then does a \insn{goto} to the
+return address, so that the exception frame will be left on the stack in the
+caller's context.
+
+TRIED marks the end of the exception frame's life.  It restores the values
+of W14 and the exception\_frame variable that were stored in the current
+exception frame, doing the same \insn{pop}/\insn{goto} routine as in TRY to
+access the stack underneath the return address passed by the caller.
+
+THROW redirects flow to the exception handler, blowing out of any
+intermediate subroutine calls and W14 stack frames that may have come into
+existence between the TRY and the THROW.  It restores the stack pointer W15
+to the value stored in exception\_frame, restores W14 and the next outer
+exception frame, then branches to the exception handler.  The last three
+instructions of THROW coincide with those of TRIED and so are shared.
+
+\section{Linked lists}
+
+These three subroutines are designed to handle single-linked lists in data
+memory, where the first field of each list element is a pointer to the next
+element and the last element's ``next'' pointer is null, defined to be
+0x0000.  The list operations are performed under \insn{disi}
+interrupt-disable, so that it will be safe to use them for updating data
+structures read by ISRs.
+
+An earlier design for the USB driver used such lists extensively.  These
+routines were originally written for that version.  The design has
+subsequently been simplified, to the point that the ``insert'' and
+``remove'' operations are no longer used anywhere in the current firmware;
+so I have commented those two subroutines out, to keep them available for
+possible future use without having them consume space.  The ``append''
+subroutine is still used in one place; and because its entry point in the
+middle of the loop would make inlining it difficult, I do not think there is
+anything to be gained by inlining it instead of keeping it as a separate
+subroutine.
+
+LL\_APPEND\_ATOMIC appends two single-linked lists.  Call it with W0
+pointing at the item(s) to add and W1 pointing at \emph{a pointer to} the
+head of the list.  The subroutine traverses the W1 list to find the
+terminating null and replaces it with the value of W0.  So W0 should be a
+properly-terminated list ([W0]$=$0x0000 if it is a single item).  Requiring
+W1 to be pointer to pointer is to allow for appending to a currently-empty
+list.
+
+LL\_INSERT\_ATOMIC (currently commented out) requires the same inputs as
+LL\_APPEND\_ATOMIC, but inserts the new element pointed to by W0 before the
+start of the list pointed to by W1.  The insert operation assumes inserting
+exactly one element, and the new element's next pointer is overwritten, thus
+need not be initialized first.
+
+LL\_REMOVE\_ATOMIC (currently commented out) removes the element pointed to
+by W0, from the list where W1 points to a pointer to the head of the list. 
+It traverses the list to find the W0 element and then removes that element. 
+Calling it on a list that does not in fact contain the specified element,
+is unsafe.
+
+\section{Pseudo-random number generator}
+
+This section implements a stirred entropy pool, similar in nature to
+operating system drivers like Linux's /dev/urandom, although much smaller. 
+\emph{This PRNG is not rated for cryptographic use.} The USB Mass Storage
+driver uses the PRNG to generate ``tag'' values exchanged with the device to
+make sure responses match commands, and the MIDI backend uses the PRNG for
+random arpeggiation.  This PRNG is probably way over-engineered for these
+applications; I just thought it would be fun to implement one using the
+PIC24's built-in CRC32 and bit-counting features, in very few code
+bytes.  The unpredictability of this PRNG's output is certainly more than
+good enough for rock'n'roll.
+
+The PRNG uses, and occupies, the hardware CRC32 peripheral.  Call START\_CRC
+to set that up with the proper polynomial and other options before calling
+PRNG subroutines, and be aware that PRNG calls will alter the state of the
+CRC32 hardware, so they cannot be mixed with other uses of the CRC32
+hardware.
+
+Code that will use this facility should call PRNG\_HASH\_TIMERS
+occasionally, at times that are not completely predictable.  After interrupt
+waits would make sense, because those are at least sometimes determined by
+unpredictable external conditions.  The PRNG\_HASH\_TIMERS call looks at the
+current count values of Timers~3, 4, and~5.  Timer~3, at least, is always
+counting at 2\,MHz, so any uncertainty on the scale of a microsecond in the
+timing of the PRNG\_HASH\_TIMERS call will create uncertainty in the count
+value.  A 16-bit word constructed from the timer values using \insn{xor}
+gets hashed into the CRC32 peripheral on each call.  Part of the design goal
+is that PRNG\_HASH\_TIMERS (called frequently and unconditionally) should be
+a relatively lightweight operation.  The more expensive processing is
+reserved for calls to extract random bits, which are less frequent and may
+be conditional on user requests.
+
+In addition to the 32 bits of state in the CRC32 hardware's shift register,
+the PRNG keeps eight words in the prng\_pool variable for an additional 128
+bits of state.  On a request for random bits, the three nested subroutines
+prng\_stir8, prng\_stir4, and prng\_stir execute to mix bits from the CRC32
+hardware with the bits in prng\_pool.  The basic stirring operation consists
+of adding words, using \insn{ff1l} to count zeros at the left of words, and
+permuting bits with \insn{rrnc} and \insn{swap}.  These operations are
+selected to be reasonably balanced with respect to 1s and 0s (so that
+uniformly distributed words, once stirred, will still be uniformly
+distributed), but to also have a little bit of nonlinearity, and good
+avalanche among different bit positions.  The nested calls repeat the
+stirring between the CRC32 hardware and each word of the pool, enough times
+that any uncertainty in the CRC value should affect all bits of the pool.
+
+Random bits can be requested with PRNG\_READ\_WORD, which does the stirring
+operation and then takes a 16-bit value from the CRC32 hardware.  The value
+is returned in W0 and is expected to be uniformly distributed over all
+possible 16-bit values.  This call trashes W2.
+
+The PRNG\_READ\_INT subroutine is a wrapper that limits PRNG\_READ\_WORD to
+a selectable range, from 0 to the value of W1 inclusive.  It works by
+calling PRNG\_READ\_WORD once, cutting off high bits if necessary to make
+the return value the same number of bits as W1, and then if the result is
+out of range, it runs the CRC32 hardware further until it gets a result that
+is in range.

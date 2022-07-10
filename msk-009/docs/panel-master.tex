@@ -1,0 +1,211 @@
+% $Id: panel-master.tex 9315 2021-08-08 20:02:24Z mskala $
+
+%
+% MSK 009 panel design (master)
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage[papersize={40.30mm,128.50mm}]{geometry}
+\usepackage{tikz}
+
+\setmainfont[Path={../../tsukurimashou/otf/},
+  BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}
+
+\usetikzlibrary{calc,decorations,decorations.pathmorphing}
+
+\begin{document}
+\pagestyle{empty}%
+\begin{tikzpicture}[remember picture,overlay]
+  % start out defining coordinates
+  \coordinate (o) at (current page.south west);
+  \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+  \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+  \coordinate (lrrh) at ($(o)+(32.90mm,3.00mm)$) {};
+  \coordinate (urrh) at ($(o)+(32.90mm,125.50mm)$) {};
+  \coordinate (lbh) at ($(o)+(20.15mm,33.77mm)$) {};
+  \coordinate (ubh) at ($(o)+(20.15mm,94.73mm)$) {};
+  \coordinate (r16) at ($(o)+(8.09mm,87.11mm)$) {};
+  \coordinate (r4) at ($(o)+(20.15mm,108.07mm)$) {};
+  \coordinate (r2) at ($(o)+(32.22mm,87.11mm)$) {};
+  \coordinate (j5) at ($(o)+(6.82mm,20.44mm)$) {};
+  \coordinate (j4) at ($(o)+(6.82mm,33.77mm)$) {};
+  \coordinate (j3) at ($(o)+(6.82mm,47.11mm)$) {};
+  \coordinate (j6) at ($(o)+(20.15mm,20.44mm)$) {};
+  \coordinate (j7) at ($(o)+(33.49mm,20.44mm)$) {};
+  \coordinate (j1) at ($(o)+(33.49mm,33.77mm)$) {};
+  \coordinate (j2) at ($(o)+(33.49mm,47.11mm)$) {};
+%
+  % background
+  \fill[white] (o) rectangle (40.30mm,128.50mm);
+  %
+  \draw[very thick] ($(r2)+(1.8mm,11mm)$)
+    -- ++(0mm,5.0mm) -- ++(1mm,0mm)
+      arc[radius=1.7mm,start angle=-90,end angle=90]
+    -- ++(-0.7mm,0mm) -- ++(0.7mm,0mm)
+      arc[radius=1.7mm,start angle=-90,end angle=90]
+    -- ++(-0.7mm,0mm) -- ++(0.7mm,0mm)
+      arc[radius=1.7mm,start angle=-90,end angle=90]
+    -- ++(-0.7mm,0mm) -- ++(0.7mm,0mm)
+      arc[radius=1.7mm,start angle=-90,end angle=90]
+    -- ++(-5mm,0mm);
+  %
+  \draw[very thick,black,fill=blue!15!black!30!white,rounded corners=3.0mm]
+    ($(r16)+(-7.27mm,-12.7mm)$) --
+    ($(r16)+(-7.27mm,33.0mm)$) --
+    ($(r2)+(-1.5mm,33.0mm)$) --
+    ($(r2)+(-1.5mm,12.7mm)$) --
+    ($(r2)+(7.27mm,12.7mm)$) --
+    ($(r2)+(7.27mm,-12.7mm)$) --cycle;
+  \draw[very thick,black,fill=blue!15!black!30!white,rounded corners=3.0mm]
+    ($(j4)+(-6.0mm,-6.0mm)$) rectangle ($(j3)+(6.0mm,6.0mm)$);
+  \draw[very thick,black,fill=blue!15!black!30!white,rounded corners=3.0mm]
+    ($(j1)+(-6.0mm,-6.0mm)$) rectangle ($(j2)+(6.0mm,6.0mm)$);
+  \draw[very thick,fill=blue!30!black,rounded corners=3.0mm]
+    ($(j5)+(-6.0mm,-10.0mm)$) rectangle ($(j7)+(6.0mm,6.0mm)$);
+  %
+  \coordinate (rref) at ($(o)+(20.15mm,60.80mm)$);
+  \draw[very thick] (r2) -- ($(o)+(20.15mm,80.14mm)$)
+    -- ($(rref)+(0mm,6mm)$) -- ($(rref)+(-2mm,5mm)$)
+    -- ($(rref)+(2mm,3mm)$) -- ($(rref)+(-2mm,1mm)$)
+    -- ($(rref)+(2mm,-1mm)$) -- ($(rref)+(-2mm,-3mm)$)
+    -- ($(rref)+(2mm,-5mm)$) -- ($(rref)+(0mm,-6mm)$)
+    -- ($(o)+(20.15mm,41.46mm)$) -- (j1);
+  %
+  \coordinate (dref) at ($(j3)+(0mm,8mm)$);
+  \draw[very thick] (dref) -- (j3);
+  \draw[very thick,fill=blue!30!black]
+    (dref) -- ++(120:7mm) -- ++(0:7mm) --cycle;
+  \draw[ultra thick] ($(dref)+(-3.9mm,0)$) -- ($(dref)+(3.9mm,0)$);
+  %
+  \node at ($(r4)+(-14.0mm,6.0mm)$) {\large T};
+  \node at ($(r4)+(-14.0mm,2.0mm)$) {\large U};
+  \node at ($(r4)+(-14.0mm,-2.0mm)$) {\large N};
+  \node at ($(r4)+(-14.0mm,-6.0mm)$) {\large E};
+  \node at ($(r16)+(0.0mm,-9.8mm)$) {\large res};
+  \node at ($(r2)+(0.0mm,-9.8mm)$) {\large att};
+  \node at ($(dref)+(0.5mm,8.2mm)$) {\small fw rect};
+  \node at ($(o)+(35mm,63.7mm)$)
+    {\parbox{0.6in}{\linespread{0.9}\selectfont\raggedright
+     coiler multi mode filter}};
+  \node at ($(j3)!0.5!(j4)$) {\large IN};
+  \node at ($(j1)!0.5!(j2)$) {\large CV};
+  \node[white] at ($(j5)+(0.0mm,-6.9mm)$) {\Large\textbf{HP}};
+  \node[white] at ($(j6)+(0.0mm,-6.9mm)$) {\Large\textbf{BP}};
+  \node[white] at ($(j7)+(0.0mm,-6.9mm)$) {\Large\textbf{LP}};
+  %
+%  \node at ($(sw1)+(0,8.7mm)$) {\large slow};
+%  \node at ($(sw1)-(0,8.7mm)$) {\large fast};
+  %
+  \node at ($(current page.north)+(0.0mm,-4.0mm)$) {\large MSK 009};
+  \node at ($(current page.south)+(0.0mm,7.0mm)$)
+    {\parbox{0.9in}{\linespread{0.75}\selectfont\center NORTH COAST}};
+%
+  % draw holes (for mock-up)
+  \ifholes
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=1.60mm];
+  \draw (ulrh) circle[radius=1.60mm];
+  \draw (lrrh) circle[radius=1.60mm];
+  \draw (urrh) circle[radius=1.60mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=1.60mm];
+  \draw (ubh) circle[radius=1.60mm];
+  % seven jacks with M6 threads, 6.3mm holes
+  \draw (j1) circle[radius=3.15mm];
+  \draw (j2) circle[radius=3.15mm];
+  \draw (j3) circle[radius=3.15mm];
+  \draw (j4) circle[radius=3.15mm];
+  \draw (j5) circle[radius=3.15mm];
+  \draw (j6) circle[radius=3.15mm];
+  \draw (j7) circle[radius=3.15mm];
+  % three pots, 9.70mm+2.20mm holes per manufacturer spec
+  \draw (r16) circle[radius=4.85mm];
+  \draw ($(r16)+(0,-6.35mm)$) circle[radius=1.10mm];
+  \draw (r4) circle[radius=4.85mm];
+  \draw ($(r4)+(-6.35mm,0)$) circle[radius=1.10mm];
+  \draw (r2) circle[radius=4.85mm];
+  \draw ($(r2)+(0,6.35mm)$) circle[radius=1.10mm];
+  \fi
+%
+  % hole centres (for panel graphics)
+  \ifcentres
+  % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+  \draw (llrh) circle[radius=0.35mm];
+  \draw (ulrh) circle[radius=0.35mm];
+  \draw (lrrh) circle[radius=0.35mm];
+  \draw (urrh) circle[radius=0.35mm];
+  % board-to-panel mounting holes, to clear M3 machine screw
+  \draw (lbh) circle[radius=0.35mm];
+  \draw (ubh) circle[radius=0.35mm];
+  % seven jacks with M6 threads, 6.3mm holes
+  \draw (j1) circle[radius=0.35mm];
+  \draw (j2) circle[radius=0.35mm];
+  \draw (j3) circle[radius=0.35mm];
+  \draw (j4) circle[radius=0.35mm];
+  \draw (j5) circle[radius=0.35mm];
+  \draw (j6) circle[radius=0.35mm];
+  \draw (j7) circle[radius=0.35mm];
+  % three pots, 9.70mm+2.20mm holes per manufacturer spec
+  \draw (r16) circle[radius=3.15mm];
+  \draw ($(r16)+(0,-6.35mm)$) circle[radius=0.35mm];
+  \draw (r4) circle[radius=3.15mm];
+  \draw ($(r4)+(-6.35mm,0)$) circle[radius=0.35mm];
+  \draw (r2) circle[radius=3.15mm];
+  \draw ($(r2)+(0,6.35mm)$) circle[radius=0.35mm];
+  \fi
+%
+  % mock up screw heads, knobs
+  \ifknobs
+  % machine screws with 6mm heads
+  \foreach \screwname in {llrh,ulrh,lrrh,urrh,lbh,ubh} {
+    \path[draw=black,shading=ball,
+      left color=black!10!white,right color=black!60!white]
+      (\screwname) circle[radius=3mm];
+    \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+    \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+  }
+  % jacks with knurled nuts
+  \foreach \jackname in {j1,j2,j3,j4,j5,j6,j7} {
+    \path[draw=black,fill=black!20!white,
+      decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+      ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+    \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+    \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+  }
+  % Davies 1900H clone knobs
+  \foreach \knobname in {r16,r2} {
+    \path[draw=black,fill=black!30!white,
+      decorate,decoration={snake,amplitude=0.6}]
+      ($(\knobname)+(0,-0.85mm)$) circle[radius=6.05mm];
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(30:6mm)$);
+  }
+  % Davies 1510 clone knobs
+  \foreach \knobname in {r4} {
+    \path[draw=black,shading=ball,
+      left color=black!20!white,right color=black!40!white]
+      (\knobname) circle[radius=9.5mm];
+    \draw ($(\knobname)+(125:9.5mm)$)--($(\knobname)+(265:9.5mm)$);
+    \draw ($(\knobname)+(85:9.5mm)$)--($(\knobname)+(305:9.5mm)$);
+    \draw[white,ultra thick] (\knobname)--($(\knobname)+(105:9.5mm)$);
+  }
+  \fi
+\end{tikzpicture}%
+\end{document}

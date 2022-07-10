@@ -1,0 +1,261 @@
+% $Id: general.tex 5963 2018-03-22 17:52:01Z mskala $
+
+%
+% MSK 011 manual introduction
+% Copyright (C) 2018  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{General notes}
+
+This manual documents the MSK~011 Transistor Mixer, which is a
+utility mixer module for use with both audio and control voltages
+in a Eurorack modular synthesizer. 
+It is a minimalist design using only six transistors and no integrated
+circuits.
+
+\section{Specifications}
+
+This module is designed to mount in 6HP of rack space in a standard 3U
+Eurorack case.
+
+The module's maximum current requirement in ordinary use is 9mA on the
+$+$12V supply and 14mA on the $-$12V supply.
+Unusual loads on the outputs, including directly-connected headphones or
+speakers and so-called ``passive'' modules, may cause the MSK~011 to draw
+more than this amount of current.
+It does not require $+$5V power.
+
+The input impedance is nominally 100k$\Omega$ for all inputs, varying a
+little with control knob positions.  The output impedance is nominally
+5k$\Omega$.  Separate AC and DC coupled outputs are provided.  Shorting any
+input or output to any fixed voltage at or between the power rails should be
+harmless to the module; patching the MSK~011's output into the output of
+some other module on the same power system should be harmless to the
+MSK~011, though doing that is not recommended because it is possible the
+other module may be harmed.
+
+Voltage gain for each channel can be adjusted between zero and a little more
+than unity.  The mixer is designed to handle input and output signals over a
+range of at least $\pm$8V; it is harmless to the module to drive the inputs
+all the way to the power rails, but such signals will clip.
+
+The very simple Class~A transistor amplifiers used in this module are
+subject to temperature-dependent DC offset.  There is a trimmer provided on
+the circuit board for overall adjustment, and the DC level can be fine-tuned
+in many patches with the normalled offset controls on the front panel;
+however, in patches where it is important to avoid any DC offset at all, it
+may be preferable to use the AC-coupled output.  Since it also may be
+difficult to adjust the gain controls to exactly unity, this mixer may not
+be the best choice for sensitive pitch-CV applications if one wants to keep
+the pitches exactly in tune; the North Coast Synthesis Ltd.\ MSK~008 Dual VC
+Octave Switch, with its precision adders based on op amp chips, may
+be a better choice for exact pitch control.  The Transistor Mixer is
+intended, instead, for users who want to embrace the organic variability of
+classic discrete-transistor circuits.
+
+This module (assuming a correct build using the recommended components) is
+protected against reverse power connection.  It will not function with the
+power reversed, but will not suffer or cause any damage.  Some other kinds
+of misconnection may possibly be dangerous to the module or the power
+supply.
+
+\section{Controls and connections}
+
+Here's a summary of the items on the front panel of the module.
+
+\begin{description}
+  \item[inputs] one for each of the four channels.  Note the
+  top one is normalled to a positive voltage (equivalent to roughly $+$6V)
+  and the bottom to a negative voltage (about $-$6V).
+
+  \item[gain controls] one knob for each channel.  These are non-inverting,
+  logarithmic controls.  For the top and bottom channels, if there is nothing
+  plugged into the corresponding input jack, the knob controls the amount
+  of DC offset.  \emph{You should set these knobs to zero, that is, fully
+  counterclockwise, if you are not using them as inputs and don't want a DC
+  offset.}
+
+  \item[DC output] the result of mixing the four inputs.
+  
+  \item[AC output] same as the DC output, but with a simple filter to block
+  DC.  The cutoff frequency depends on the load you apply, but would
+  typically be less than 1Hz, so this output is suitable even for control
+  voltages if they are reasonably fast-moving.
+\end{description}
+
+Also note, on the circuit board behind the panel, the offset trimmer,
+labelled ``R7 100k offset null.'' This will have been pre-set when the
+module was built, but it can be adjusted again later if necessary. 
+Adjustment range for this trimmer is approximately $\pm$2V.
+
+\section{Source package}
+
+A ZIP archive containing source code for this document and for the module
+itself, including things like machine-readable CAD files, is available from 
+the Web site at 
+\url{https://northcoastsynthesis.com/}.  Be aware that actually building
+from source requires some manual steps; Makefiles for GNU Make are provided,
+but you may need to manually generate PDFs from the CAD files for inclusion
+in the document, make Gerbers from the PCB design, manually edit the .csv
+bill of materials files if you change the bill of materials, and so on.
+
+Recommended software for use with the source code includes:
+\begin{itemize}
+  \item GNU Make;
+  \item \LaTeX\ for document compilation;
+  \item LaTeX.mk (Danjean and Legrand, not to be confused with other
+    similarly-named \LaTeX-automation tools);
+  \item Circuit\_macros (for in-document schematic diagrams);
+  \item Kicad (electronic design automation);
+  \item Qcad (2D drafting); and
+  \item Perl (for the BOM-generating script).
+\end{itemize}
+
+The kicad-symbols/ subdirectory contains my customised schematic symbol and
+PCB footprint libraries for Kicad.  Kicad doesn't consistently keep
+dependencies like symbols inside a project directory, so on my system, these
+files actually live in a central directory shared by many projects.  As a
+result, upon unpacking the ZIP file you may need to do some reconfiguration
+of the library paths stored inside the project files, in order to allow the
+symbols and footprints to be found.  Also, this directory will probably
+contain some extra bonus symbols and footprints not actually used by this
+project, because it's a copy of the directory shared with other projects.
+
+The package is covered by the GNU GPL, version 3, a copy of which is
+included in the file COPYING.
+
+\section{PCBs and physical design}
+
+This module is built on a single PCB
+4.20$''$\linebreak[0]$\times$\linebreak[0]1.30$''$, or
+106.68mm\linebreak[0]$\times$\linebreak[0]33.02mm, which mounts
+perpendicular to the front panel.  With about another 1mm
+of gap between the PCB and panel, the total depth requirement is 34mm.
+
+\section{Component substitutions}
+
+This circuit should work with almost any NPN transistors.  We ship
+2N5088 transistors in our kits and assembled modules, and these are
+high-quality silicon amplifier transistors with gain in the range of a few
+hundred; to be honest, they are higher specification than this circuit
+needs.  Any transistors used should be able to handle the full power supply
+voltage (24V) between collector and emitter, and at least about 10mA of
+current.  Low-gain transistors (less than about 30 or 40) may have some
+impact on the accuracy and available gain of the mixing, but if you are
+using such transistors, you probably intend for them to have an effect.  Any
+other effects of transistor substitution are likely to be very subtle.  It
+is not necessary to match transistors, though if two channel buffers have
+very different transistors in them, then those channels may end up sounding
+different from each other.
+
+When substituting NPN transistors, connect the collector, base, and emitter
+to the pads marked ``C,'' ``B,'' and ``E'' on the board according to the
+pinout of the specific transistors you are using, even if that does not
+match the flat side of the TO-92 outline in the silkscreen (which refers to
+the 2N5088 pinout).
+
+Fairchild/ON Semi, formerly the main manufacturer of 2N5088 transistors,
+announced their discontinuation while this product was in development. 
+North Coast made a lifetime buy and we should be able to continue supplying
+kits and modules with 2N5088 transistors for the foreseeable future.  As of
+this writing, Central Semiconductor still makes 2N5088 transistors.  But
+most other small NPN amplifier transistors should also work well in this
+circuit and could be substituted; the transistor selection is not critical.
+
+On substituting other components:  we suggest 1\%\ metal film fixed
+resistors throughout, because these days, they are cheap enough to use
+indiscriminately; however, it would probably still work fine with 5\%\ 
+resistors in most if not all locations.  None of the resistors are
+particularly critical with respect to power handling and we supply different
+power ratings of resistors for different values according to what we can
+source easily.  The output AC-coupling capacitor is designed as 4.7$\mu$F
+film for best performance, but it should be safe to substitute one a little
+smaller, or a non-polar electrolytic.
+
+\section{PNP transistor modification}
+
+\emph{This modification is only appropriate for advanced builders.}
+
+Because the circuit is so simple, it is possible to reverse the polarities
+of the components and build it with PNP instead of NPN transistors,
+without any changes to the board layout!  This might be useful if one wants
+to use, for instance, vintage germanium transistors, which tend to be PNP
+type.  However, it means disobeying the instructions on the board
+silkscreen, and attaching the power backwards; so it is not for the faint of
+heart.
+
+To build using PNP transistors:
+
+\begin{itemize}
+  \item Install PNP transistors on the board according to the silkscreen
+  markings:  collectors to ``C,'' bases to ``B,'' and emitters to ``E.''
+  Disregard the TO-92 outlines on the board, which may or may not match your
+  transistors depending on their pinout.
+  \item Install the diodes D1 and D2 \emph{against} the silkscreen markings,
+  with their cathodes in the circular pads pointing away from the silkscreen
+  symbol's stripe.
+  \item Install the electrolytic capacitors C2 and C3 \emph{against} the
+  silkscreen markings, with their positive terminals in the circular pads
+  marked ``$-$.''
+  \item Attach the power cable \emph{upside down} (!), with its striped edge
+  denoting the negative rail at the top of the connector on the module PCB,
+  against the ``$-$12V'' marking on the silkscreen.
+\end{itemize}
+
+\section{Modification for $\pm$15V power}
+
+To change this circuit for $\pm$15V power:
+
+\begin{itemize}
+  \item Make sure all components (taking particular note of transistors
+  and electrolytic capacitors) are rated for 30V.
+  \item Change R17 to 2.4k$\Omega$ (was 2.7k$\Omega$).
+  \item Change R18 to 6.2k$\Omega$ (was 5.9k$\Omega$).
+  \item Substitute an appropriate power connection for the Eurorack power
+  header.
+\end{itemize}
+
+The resistor changes were determined by simulation; I have not built a
+$\pm$15V prototype for testing.
+
+\section{Use and contact information}
+
+This module design is released under the GNU GPL, version 3, a copy of which
+is in the source code package in the file named \texttt{COPYING}.  One
+important consequence of the license is that if you distribute the design to
+others---for instance, as a built hardware device---then you are obligated
+to make the source code available to them at no additional charge, including
+any modifications you may have made to the original design.  Source code for
+a hardware device includes without limitation such things as the
+machine-readable, human-editable CAD files for the circuit boards and
+panels.  You also are not permitted to limit others' freedoms to
+redistribute the design and make further modifications of their own.
+
+I sell this and other modules, both as fully assembled products and
+do-it-yourself kits, from my Web storefront at
+\url{http://northcoastsynthesis.com/}.  Your support of my business is what
+makes it possible for me to continue releasing module designs for free. 
+Even if you only use the free plans and cannot buy the commercial products I
+sell, any assistance you can offer to increasing the profile of North Coast
+would be much appreciated.  For instance, you might post photos of your
+completed DIY build on your social media.  The latest version of this
+document and the associated source files can be found at the North Coast Web
+site.
+
+Email should be sent to\\ \url{mskala@northcoastsynthesis.com}.

@@ -1,0 +1,161 @@
+% $Id: testss.tex 9768 2022-01-17 15:14:02Z mskala $
+
+%
+% Test routines
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Test routines (tests.s)}
+
+It is often useful when debugging firmware to run specialized test code on the
+microcontroller, either at full speed in the environment of the real
+firmware, on the real chip but single-stepping with a debugging tool, or
+on Microchip's simulator without using a real chip.  The tests.s file
+collects subroutines written for testing and development.
+
+Each of these is conditionally assembled, under the control of symbols set
+in the config.inc file.  A normal ``production'' build of the firmware will
+not actually contain any of them.  But during development it may be useful
+to build in any or all of them by editing config.inc.  If SKIP\_TESTS is
+\emph{not} defined, then the firmware will jump to the test code upon
+boot-up instead of running its main loop.  Most of the tests also define
+maintenance codes (see qwerty.s), allowing them to be triggered at run time
+with a typing keyboard.  Note that if the relevant tests are not assembled
+into the firmware, then the maintenance code definitions also will not be
+assembled and so will not be available.  But if running under a debugger, it
+may be most useful to simply use the debugger to override normal control
+flow and jump to a test routine when desired instead of using a maintenance
+code anyway.
+
+\section{Calibration routine, code 5833}
+
+The TEST\_CALIBRATION symbol simply assembles a branch to
+CALIBRATION\_PROCEDURE in calibration.s, treating the always-included
+calibration routine as a test in the same framework as the others.
+
+\section{CRC32 test, code 2540}
+
+Define TEST\_CRC32 to activate the CRC32 test, which uses the PIC24 CRC
+hardware to compute the CRC32 value of the ten-byte ASCII string
+``1234567890''; that is a standard test vector.  The 32-bit result ought to
+be 0xCBF43926.  After doing the calculation, the test routine either colours
+the LEDs green (on success) and loops to try again, or colours them red (on
+failure) and stops in an infinite loop, repeatedly idling the CPU.  So if
+the LEDs stay green while the CPU is running, that means it has not only
+gotten the right answer once, but is repeating the test probably thousands
+of times per second and getting the right answer every time (at least, until
+the WDT possibly times out).  But rather than letting it run at full speed,
+it is probably more useful to run this test while single-stepping, possibly
+even in the simulator rather than actual hardware, to watch what happens in
+the peripheral's registers.
+
+Actually using the PIC24's hardware CRC peripheral is a bit complicated and
+non-intuitive.  Microchip's documentation is confusing and the consensus
+when I looked in their user support forum was that it is too hard to be
+worthwhile, and better to just write a software implementation.  Although
+the process is not very visible in the final test code, I found this test
+code useful for getting the hardware to actually work -- by doing extensive
+trial and error of modifications on this test routine until it succeeded,
+then using that knowledge to inform the firmware's real CRC code in
+loader.s.
+
+\section{LED blinker test, code 3183}
+
+Define TEST\_LED\_BLINKER for a simple test of the LED blinker driver
+(ledblink.s).  It uses that code's API to set the two LEDs to a pattern of
+varying long and short red and green blinks, then goes into an idle loop.
+
+\section{MIDI stream test, code 1001}
+
+The MIDI stream test, activated by TEST\_MIDI\_STREAM, sends bytes of data
+to the MIDI back end driver as if they had been received from a USB MIDI
+device (in single byte mode).  That can be useful for testing the back end
+without needing to also have an input device that works.
+
+The data stream to send is defined between
+the local symbols midi\_stream\_data and midi\_stream\_end, and it will be
+sent infinitely repeating with 150\,ms delay between bytes (as controlled by
+USB\_LOOP\_WAIT, for which this routine is also a useful test).
+
+The data stream in the distributed code, which could be modified by editing
+the code, is 0x90 0x3C 0x66 0x80 0x3C 0x00, which corresponds to Note On,
+Note Off, for Middle~C with velocity~102 in Channel~1.
+
+\section{PRNG test, code 5879}
+
+The PRNG test activated by defining TEST\_PRNG extracts random numbers from
+the pseudo-random number generator and sends them to the DACs, producing
+white noise on the analog outputs.  It uses the calibrated-voltage code path
+and can also be a test of that.  There is a commented-out \insn{pwrsav}~\#1
+instruction in the loop.  With that commented out, the loop runs at maximum
+speed (allowing a test of how fast the PRNG actually is), but is liable to
+be interrupted by the watchdog timer.  With the \insn{pwrsav}~\#1 put in,
+the CPU idles waiting for an interrupt once each time around the loop,
+which is useful for estimating how often interrupts tend to occur.
+
+Scoping, or listening to, the noise outputs during this test may be of some
+help in verifying that the PRNG really produces something like the desired
+distribution.
+
+\section{SPI test, code 9485}
+
+SPI transactions can be tested by defining TEST\_SPI.  This test sends four
+transactions, in a loop:  first a read from the low moby (addresses 0x00000 to
+0x0FFFF) of the SRAM; then a write to DAC1; then a read from the high moby
+(0x10000 to 0x1FFFF) of the SRAM; then finally a write to DAC2.  The
+addresses, and the values sent to the DACs, increment each time around.  The
+test point (P5) also goes high during the write to DAC1, low at other times
+during the loop.
+
+The idea is that this loop creates a pattern of signals on the pins of the
+microcontroller that can usefully be probed with an oscilloscope.  There is
+enough unpatterned traffic on the SPI data lines to create ``eye patterns''
+useful for seeing that voltages and rise and fall times on the SPI bus are
+as they should be.  By using the test point signal as a trigger, it is
+possible to zoom in on particular transactions in the loop and see that the
+DAC is getting the right data and the SRAM is responding appropriately to
+signals.  And the DAC outputs can also be probed to see whether they are
+giving reasonable-looking upward ramps.
+
+\section{USB eye pattern test}
+
+The PIC24 USB hardware is supposed to support an eye pattern test mode
+activated by setting bit 15 in the U1CNFG1 register.  I have not been able
+to find detailed documentation on what this feature actually does.  There is
+a caution in the Microchip documentation saying not to activate it with a
+real USB device connected.  It's reasonable to guess that it may drive the
+USB data lines into oscillation to display eye patterns on an oscilloscope.
+
+I wrote the USB\_EYE\_PATTERN\_TEST routine to activate the eye pattern test
+mode on experimental hardware, but it didn't seem to do anything.  The code
+remains for possible future experiments, conditionally assembled on defining
+TEST\_USB\_EYE\_PATTERN, but it may not be very useful, so no maintenance
+code has been defined.  This code does also toggle the digital output jacks,
+and the LEDs between red and green (fast enough to appear yellow).
+
+By putting an oscilloscope on either USB data line while sending data from a
+USB device that sends data frequently (possibly a mouse for low speed or a
+MIDI keyboard for full speed), with careful triggering and a persistent
+display it is possible to display eye patterns without needing any special
+testing mode on the host.  I am not even sure that USB eye patterns as such
+are particularly useful for this hardware; I did not have any bugs for which
+they helped in debugging.  But they are fun to look at, and scoping the USB
+data lines was useful for several issues (in particular, related to
+attach/detach and SOF/keep-alive generation) that were not debugged using eye
+patterns as such.

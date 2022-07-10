@@ -1,0 +1,10 @@
+"Id";"Designator";"Package";"Quantity";"Designation";"Supplier and ref";
+5;"D9,D10,D11,D12,D21,D22,D23,D24";"LEDmsk";8;"L-57EGW";;;
+7;"H1,H5";"Hardware";2;"M3x6";;;
+8;"H2,H6";"Hardware";2;"M3x10";;;
+9;"H3,H7";"Hardware";2;"M3x11";;;
+10;"H4,H8";"Hardware";2;"M3";;;
+17;"R21,R23,R25,R27,R49,R51,R53,R55";"R4valmsk";8;"1k";;;
+18;"R22,R24,R26,R28,R50,R52,R54,R56";"R4valmsk";8;"510";;;
+20;"J8,J7,J6,J5,J4,J3,J2,J1";"mono_jack_slotted";8;"1502 03";;;
+19;"U1,U2";"DIP14msk";2;"TL074";;;

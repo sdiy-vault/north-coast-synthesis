@@ -1,0 +1,278 @@
+% $Id: mouse.tex 9718 2021-12-19 19:26:46Z mskala $
+
+%
+% Mouse interface
+% Copyright (C) 2022  Matthew Skala
+%
+% This program is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, version 3.
+%
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+%
+% You should have received a copy of the GNU General Public License
+% along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Matthew Skala
+% https://northcoastsynthesis.com/
+% mskala@northcoastsynthesis.com
+%
+
+\chapter{Mouse interface}
+
+An ordinary USB mouse plugged into the Gracious Host makes a simple CV/gate
+controller.  The connections and basic functions for this mode are as shown in
+Figure~\ref{fig:mouse-conn}.
+
+\begin{figure*}
+{\centering\begin{tikzpicture}
+  \begin{scope}
+    \setmainfont[Path={../../tsukurimashou/otf/},
+      BoldFont={TsukurimashouBokukkoExtraBoldPS}]{TsukurimashouBokukkoDemiboldPS}%
+    % start out defining coordinates
+    \coordinate (o) at (0,0);
+    \coordinate (llrh) at ($(o)+(7.50mm,3.00mm)$) {};
+    \coordinate (ulrh) at ($(o)+(7.50mm,125.50mm)$) {};
+    \coordinate (lrrh) at ($(o)+(32.90mm,3.00mm)$) {};
+    \coordinate (urrh) at ($(o)+(32.90mm,125.50mm)$) {};
+    \coordinate (lbh) at ($(o)+(4.91mm,34.23mm)$) {};
+    \coordinate (ubh) at ($(o)+(35.39mm,112.97mm)$) {};
+    \coordinate (j1) at ($(o)+(8.72mm,62.17mm)$) {};
+    \coordinate (j2) at ($(o)+(27.77mm,62.17mm)$) {};
+    \coordinate (j3) at ($(o)+(8.72mm,43.12mm)$) {};
+    \coordinate (j4) at ($(o)+(27.77mm,43.12mm)$) {};
+    \coordinate (j5) at ($(o)+(8.72mm,24.07mm)$) {};
+    \coordinate (j6) at ($(o)+(27.77mm,24.07mm)$) {};
+    \coordinate (d5) at ($(o)+(8.72mm,53.28mm)$) {};
+    \coordinate (d6) at ($(o)+(27.77mm,53.28mm)$) {};
+    \coordinate (j11) at ($(o)+(8.80mm,102.81mm)$) {};
+%
+    \coordinate (cpn) at ($(o)+(20.15mm,128.50mm)$) {};
+    \coordinate (cps) at ($(o)+(20.15mm,0mm)$) {};
+    \coordinate (cpe) at ($(o)+(40.30mm,64.25mm)$) {};
+    \coordinate (cpw) at ($(o)+(0mm,64.25mm)$) {};
+%
+    % background
+    \draw[fill=white] (o) rectangle (40.30mm,128.50mm);
+    \clip (o) rectangle (40.30mm,128.50mm);
+  %
+    \draw[very thick,black,fill=blue!15!black!30!white,rounded corners=3.0mm]
+      ($(j11)+(-15mm,-12mm)$) rectangle ($(j11)+(11mm,12mm)$);
+    \draw[very thick,black] (j1) -- (j3);
+    \draw[very thick,black] (j2) -- (j4);
+    \draw[very thick,black,fill=blue!50!black!30!white,rounded corners=3.0mm]
+      ($(j5)+(-5mm,-7mm)$) rectangle ($(j4-|cpe)+(5mm,7mm)$);
+    \node at ($(j1)!0.5!(j2)$) {\large IN};
+    \node[white] at ($(j3)!0.5!(j4)$) {\large\textbf{CV}};
+    \node[white] at ($(j5)!0.5!(j6)$) {\large\textbf{GT}};
+  %
+    \coordinate (sref) at ($(j1)!0.53!(j11)$) {};
+    \coordinate (nref) at ($(sref)+(9.525mm,-20.32mm)$) {};
+    \draw[very thick] ($(sref-|cpw)$)
+      -- ($(sref-|cpe)$);
+    \draw[very thick] ($(sref-|cpw)+(0,-2.5mm)$)
+      -- ($(sref-|cpe)+(0,-2.5mm)$);
+    \draw[very thick] ($(sref-|cpw)+(0,-5mm)$)
+      -- ($(sref-|cpe)+(0,-5mm)$);
+    \draw[very thick] ($(sref-|cpw)+(0,-7.5mm)$)
+      -- ($(sref-|cpe)+(0,-7.5mm)$);
+    \draw[very thick] ($(sref-|cpw)+(0,-10mm)$)
+      -- ($(sref-|cpe)+(0,-10mm)$);
+    \node at ($(nref)+(-11.0mm,15.62mm)$)
+      {\lilyGlyph[scale=2.9]{clefs.G}};
+    \node at ($(nref)+(-3.5mm,15.62mm)$)
+      {\lilyGlyph[scale=2.9]{rests.2}};
+    \foreach \x/\y in {3.00/0.05,10.00/2.55,17.00/5.05} {
+      \node at ($(nref)+(\x mm,14mm+\y mm)$)
+        {\lilyGlyph[scale=2.9]{noteheads.s2}};
+      \draw[very thick]
+        ($(nref)+(\x mm+1.4mm,14.1mm+\y mm)$) -- ++(0,8.5mm);
+    }
+  %
+    \node at ($(cpn)+(0.0mm,-4.0mm)$) {\large MSK 014};
+    \node at ($(cpn)+(0.0mm,-9.5mm)$) {\large GRACIOUS HOST};
+    \node at ($(cps)+(0.0mm,8.5mm)$)
+      {\parbox{0.9in}{\linespread{0.75}\selectfont\center NORTH COAST}};
+%
+    % panel-to-rails mounting holes, 3.2mm holes to clear M3 machine screw
+    \draw (llrh) circle[radius=1.60mm];
+    \draw (ulrh) circle[radius=1.60mm];
+    \draw (lrrh) circle[radius=1.60mm];
+    \draw (urrh) circle[radius=1.60mm];
+    % board-to-panel mounting holes, to clear M3 machine screw
+    \draw (lbh) circle[radius=1.60mm];
+    \draw (ubh) circle[radius=1.60mm];
+    % six jacks with M6 threads, 6.3mm holes
+    \draw (j1) circle[radius=3.15mm];
+    \draw (j2) circle[radius=3.15mm];
+    \draw (j3) circle[radius=3.15mm];
+    \draw (j4) circle[radius=3.15mm];
+    \draw (j5) circle[radius=3.15mm];
+    \draw (j6) circle[radius=3.15mm];
+    % two LEDs, 5.20mm holes
+    \draw (d5) circle[radius=2.60mm];
+    \draw (d6) circle[radius=2.60mm];
+    % rectangular hole for USB A connector
+    \draw[rounded corners=1mm]
+      ($(j11)+(-3.76mm,-7.45mm)$) rectangle ($(j11)+(3.76mm,7.45mm)$);
+%
+    % machine screws with 6mm heads
+    \foreach \screwname in {llrh,ulrh,lrrh,urrh,lbh,ubh} {
+      \path[draw=black,shading=ball,
+        left color=black!10!white,right color=black!60!white]
+        (\screwname) circle[radius=3mm];
+      \draw ($(\screwname)+(50:3.0mm)$)--($(\screwname)+(220:3.0mm)$);
+      \draw ($(\screwname)+(40:3.0mm)$)--($(\screwname)+(230:3.0mm)$);
+    }
+    % jacks with knurled nuts
+    \foreach \jackname in {j1,j2,j3,j4,j5,j6} {
+      \path[draw=black,fill=black!20!white,
+        decorate,decoration={snake,amplitude=0.6,segment length=2.5}]
+        ($(\jackname)+(0,-0.15mm)$) circle[radius=4mm];
+      \path[draw=black,fill=black!15!white] (\jackname) circle[radius=3mm];
+      \path[draw=black,fill=black] (\jackname) circle[radius=2mm];
+    }
+    % LEDs with red/green gradient
+    \foreach \ledname in {d5,d6} {
+      \path[shading=ball,left color=green,right color=red]
+        (\ledname) circle[radius=2.50mm];
+    }
+    % mock up USB connector
+    \draw[rounded corners=1mm,fill=black!10!white]
+      ($(j11)+(-3.76mm,-7.45mm)$) rectangle ($(j11)+(3.76mm,7.45mm)$);
+    \fill[rounded corners=0.64mm,fill=black!70!white]
+      ($(j11)+(-2.25mm,-6.00mm)$) rectangle ($(j11)+(2.25mm,6.00mm)$);
+    \fill[rounded corners=0.64mm,fill=blue!35!black!30!white]
+      ($(j11)+(0,-5.50mm)$) rectangle ($(j11)+(1.75mm,5.50mm)$);
+  \end{scope}
+  \draw (o) rectangle (40.30mm,128.50mm);
+%
+  \coordinate (mtab) at ($(d5)+(-20mm,27mm)$) {};
+  \draw[very thick,{Stealth[scale=1.2]}-,rounded corners=4mm]
+    (mtab) -- ($(d5|-mtab)+(-11mm,0mm)$) --
+    ($(d5)+(-11mm,0)$) -- ($(d5)+(-4mm,0)$);
+  \draw[rounded corners=4mm,very thick,dashed]
+    ($(d5)+(-4mm,-4mm)$) rectangle ($(d6)+(4mm,4mm)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j3)+(-15mm,0)$) -- ($(j3)+(-5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j4)+(18mm,0)$) -- ($(j4)+(5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j5)+(-15mm,0)$) -- ($(j5)+(-5mm,0)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(j6)+(18mm,0)$) -- ($(j6)+(5mm,0)$);
+%
+  \node[anchor=east] at (mtab) {quantization mode};
+  \node[anchor=east] at ($(j3)+(-15mm,0)$) {X coord};
+  \node[anchor=west] at ($(j4)+(18mm,0)$) {Y coord};
+  \node[anchor=east] at ($(j5)+(-15mm,0)$)
+    {\parbox{12mm}{left button}};
+  \node[anchor=west] at ($(j6)+(18mm,0)$)
+    {\parbox{12mm}{right button}};
+%
+  \path[draw,fill=green!60!white] ($(mtab)+(-23mm,-6mm)$)
+    circle[radius=1.50mm];
+  \path[draw,fill=green!60!white] ($(mtab)+(-19mm,-6mm)$)
+    circle[radius=1.50mm];
+  \node[anchor=west] at ($(mtab)+(-16mm,-6mm)$)
+    {unquantized};
+%
+  \path[draw,fill=red!90!black] ($(mtab)+(-23mm,-11mm)$)
+    circle[radius=1.50mm];
+  \path[draw,fill=red!90!black] ($(mtab)+(-19mm,-11mm)$)
+    circle[radius=1.50mm];
+  \node[anchor=west] at ($(mtab)+(-16mm,-11mm)$)
+    {smart};
+%
+  \path[draw,fill=red!90!black] ($(mtab)+(-23mm,-16mm)$)
+    circle[radius=1.50mm];
+  \path[draw,fill=green!60!white] ($(mtab)+(-19mm,-16mm)$)
+    circle[radius=1.50mm];
+  \node[anchor=west] at ($(mtab)+(-16mm,-16mm)$)
+    {diatonic};
+%
+  \path[draw,fill=green!60!white] ($(mtab)+(-23mm,-21mm)$)
+    circle[radius=1.50mm];
+  \path[draw,fill=red!90!black] ($(mtab)+(-19mm,-21mm)$)
+    circle[radius=1.50mm];
+  \node[anchor=west] at ($(mtab)+(-16mm,-21mm)$)
+    {semitone};
+%
+  \coordinate (mouse) at ($(o)+(90mm,110mm)$) {};
+  \coordinate (arctop) at ($(o)+(50mm,170mm)$) {};
+  \fill (j11) circle[radius=1.50mm];
+  \draw[very thick] (j11)
+    ..controls ($(arctop)+(-10mm,0)$) and ($(arctop)+(10mm,0)$)..
+    (mouse);
+  \path[thick,draw,fill=white]
+    ($(mouse)+(-17mm,-9mm)$)
+      arc[start angle=180,end angle=90,radius=9mm] --
+    ($(mouse)+(-8mm,0mm)$) -- ($(mouse)+(8mm,0mm)$)
+      arc[start angle=90,end angle=0,radius=9mm] --
+    ($(mouse)+(17mm,-30mm)$)
+      arc[start angle=0,end angle=-180,radius=17mm]
+    --cycle;
+  \draw[thick] ($(mouse)+(-17mm,-25mm)$) -- ($(mouse)+(17mm,-25mm)$);
+  \draw[thick] (mouse) -- ($(mouse)+(0mm,-25mm)$);
+  \draw[thick,fill=white,rounded corners=2mm]
+    ($(mouse)+(-3mm,-20mm)$) rectangle ($(mouse)+(3mm,-5mm)$);
+%
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(mouse)+(-10mm,-16mm)$) -- ($(mouse)+(-27mm,8mm)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(mouse)+(10mm,-16mm)$) -- ($(mouse)+(27mm,4mm)$);
+  \draw[very thick,{Stealth[scale=1.2]}-]
+    ($(mouse)+(0mm,-10mm)$) -- ($(mouse)+(12mm,16mm)$);
+%
+  \node[anchor=south] at ($(mouse)+(-25mm,8mm)$) {\parbox{12mm}{left gate}};
+  \node[anchor=south] at ($(mouse)+(29mm,4mm)$) {\parbox{12mm}{right gate}};
+  \node[anchor=south] at ($(mouse)+(15mm,16mm)$) {\parbox{12mm}{change mode}};
+\end{tikzpicture}\par}
+\caption{Mouse interface functions.}\label{fig:mouse-conn}
+\end{figure*}
+
+The standardization of USB mice is much like that of typing keyboards:  the
+relevant standard includes a very complicated protocol and a simple one, and
+most implementors only use the simple one.  In technical terms, the Gracious
+Host supports the ``boot mouse'' protocol, for USB devices that expose an
+interface descriptor of class 3, subclass 1, protocol 2.  Nearly all
+commonly-available USB mice can operate under this protocol.
+
+The basic function with a mouse attached is that the left and right mouse
+buttons send gates (to the Gracious Host's digital outputs) and the X and Y
+coordinates of mouse motion control the analog CV outputs.  The middle
+button (or wheel, when clicked) cycles between the quantization modes below;
+and the colours of the LEDs (which light up on button presses) indicate the
+current mode.
+
+\begin{itemize}
+  \item Unquantized (both LEDs green; default on startup) -- CV outputs
+    directly reflect the current X and Y coordinates.
+  \item Smart quantize (both LEDs red) -- CV outputs are quantized to a
+    diatonic scale that attempts to automatically follow the notes you play. 
+    Play the fourth of the (major) scale three times without playing the
+    seventh and it will shift to the subdominant key; play the seventh three
+    times without playing the fourth, and it will shift to the dominant.  In
+    practice, this allows for free improvisation with the somewhat clumsy
+    mouse control, while keeping everything more or less sounding like it is
+    in tune.
+  \item Quantize to fixed scale (left LED red, right green) -- CV outputs
+    are quantized to a fixed diatonic scale (C major or A minor, if 0V
+    output is considered to be C).
+  \item Quantize to semitones (left LED green, right red) -- CV outputs are
+    quantized to V/oct semitones, that is, round multiples of $1/12$ of a
+    volt.
+\end{itemize}
+
+In the quantization modes, the CVs are quantized only while the button is
+held and the gate is high; otherwise they are unquantized.  That way, it is
+convenient to build a patch where one voltage is quantized pitch and the
+other is something like filter cutoff not meant to be quantized; to control
+the patch as intended, just don't press the button on the unquantized side.
+
+The input jacks are not used in mouse mode, and (because the USB boot mouse
+protocol does not specify this) the mouse wheel's scrolling
+function, other than clicking it, has no consistent interpretation.
